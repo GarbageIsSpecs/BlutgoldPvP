@@ -1,0 +1,20 @@
+{
+	"schemaVersion": 1,
+	"id": "blutgoldpvp",
+	"version": "${version}",
+	"name": "Blutgold PvP",
+	"description": "PvP-Komfort: rote Hitboxen, Ziel-Crosshair, CPS/FPS, Rüstungs- und Trank-HUD, Toggle-Sprint und kein Kamera-Wackeln.",
+	"authors": ["Ibrahim"],
+	"license": "CC0-1.0",
+	"icon": "assets/blutgoldpvp/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["de.blutgold.pvp.BlutgoldPvpClient"]
+	},
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
