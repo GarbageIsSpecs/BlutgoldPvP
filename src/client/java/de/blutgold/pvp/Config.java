@@ -3,48 +3,98 @@ package de.blutgold.pvp;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
 
 import net.fabricmc.loader.api.FabricLoader;
 
-/** Einfache Einstellungen, gespeichert in .minecraft/config/blutgoldpvp.properties */
+/**
+ * Alle Einstellungen, gespeichert in .minecraft/config/blutgoldpvp.properties.
+ * Jedes "public static" Feld hier wird automatisch gespeichert und geladen.
+ */
 public final class Config {
-	// HUD
+	// ---------------- HUD
 	public static boolean hud = true;
 	public static boolean showFpsCps = true;
 	public static boolean showArmor = true;
 	public static boolean showEffects = true;
 	public static float hudOpacity = 0.56f;
+	public static boolean hudRight = false;
+	public static boolean hudShadow = true;
 
-	// Hitboxen & Crosshair
+	// ---------------- Info-Anzeigen
+	public static boolean showCoords = false;
+	public static boolean showDirection = false;
+	public static boolean showSpeed = false;
+	public static boolean showClock = false;
+	public static boolean showCombo = true;
+	public static boolean showReach = true;
+
+	// ---------------- Hitboxen
 	public static boolean hitboxes = true;
 	public static boolean hitboxesPlayersOnly = true;
-	public static boolean targetCrosshair = true;
+	public static boolean hitboxEyeLine = true;
+	public static boolean hitboxFlash = true;
 
-	// Komfort
+	// ---------------- Crosshair
+	public static boolean targetCrosshair = true;
+	public static boolean crosshairCooldown = true;
+	public static boolean crosshairBrackets = true;
+	public static float crosshairGap = 2f;
+
+	// ---------------- Komfort
 	public static boolean toggleSprint = false;
 	public static boolean noHurtCam = true;
 	/** Ursprüngliche Stärke des Kamera-Wackelns, damit wir sie wiederherstellen können. */
 	public static double savedTilt = 1.0;
 
-	// Block-Rahmen
+	// ---------------- Block-Rahmen
 	public static boolean rainbowOutline = true;
 	/** 0 = Regenbogen, 1 = Einfarbig, 2 = Theme-Verlauf */
 	public static int outlineMode = 0;
 	public static float outlineHue = 0.0f;
 	public static float outlineSaturation = 1.0f;
 	public static float outlineOpacity = 1.0f;
-	/** Dicke in Stufen 1..10 */
 	public static float outlineThickness = 4f;
 	public static float outlineSpeed = 0.35f;
 	public static float outlineSpread = 0.6f;
-	/** Deckkraft der Füllung im Block (0 = aus) */
 	public static float outlineFill = 0.0f;
 
-	// Theme
+	// ---------------- Flügel
+	public static boolean wings = true;
+	/** 0 = Blutgold, 1 = Theme, 2 = Regenbogen, 3 = Schatten */
+	public static int wingColor = 0;
+	public static float wingScale = 1.0f;
+	public static float wingFlapSpeed = 1.0f;
+	public static float wingSpread = 0.5f;
+	public static float wingOpacity = 0.85f;
+	public static boolean wingVeins = true;
+	public static boolean wingFlapOnlyMoving = false;
+
+	// ---------------- Heiligenschein
+	public static boolean halo = true;
+	/** 0 = Gold, 1 = Theme, 2 = Regenbogen, 3 = Blutrot */
+	public static int haloColor = 0;
+	public static float haloSize = 1.0f;
+	public static float haloHeight = 0.35f;
+	public static float haloSpin = 1.0f;
+	public static boolean haloSpikes = true;
+	public static boolean haloBob = true;
+
+	// ---------------- Partikel
+	public static boolean particles = true;
+	/** siehe Cosmetics.PARTICLE_TYPES */
+	public static int particleType = 0;
+	public static float particleAmount = 0.4f;
+	public static boolean particlesOnlyMoving = true;
+	public static boolean particlesFirstPerson = true;
+
+	// ---------------- Design
 	public static int theme = 0;
+	public static float menuDim = 0.4f;
 
 	private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("blutgoldpvp.properties");
 
@@ -61,70 +111,44 @@ public final class Config {
 		} catch (IOException e) {
 			return;
 		}
-		hud = bool(p, "hud", hud);
-		showFpsCps = bool(p, "showFpsCps", showFpsCps);
-		showArmor = bool(p, "showArmor", showArmor);
-		showEffects = bool(p, "showEffects", showEffects);
-		hudOpacity = num(p, "hudOpacity", hudOpacity);
-		hitboxes = bool(p, "hitboxes", hitboxes);
-		hitboxesPlayersOnly = bool(p, "hitboxesPlayersOnly", hitboxesPlayersOnly);
-		targetCrosshair = bool(p, "targetCrosshair", targetCrosshair);
-		toggleSprint = bool(p, "toggleSprint", toggleSprint);
-		noHurtCam = bool(p, "noHurtCam", noHurtCam);
-		savedTilt = num(p, "savedTilt", (float) savedTilt);
-		rainbowOutline = bool(p, "rainbowOutline", rainbowOutline);
-		outlineMode = (int) num(p, "outlineMode", outlineMode);
-		outlineHue = num(p, "outlineHue", outlineHue);
-		outlineSaturation = num(p, "outlineSaturation", outlineSaturation);
-		outlineOpacity = num(p, "outlineOpacity", outlineOpacity);
-		outlineThickness = num(p, "outlineThickness", outlineThickness);
-		outlineSpeed = num(p, "outlineSpeed", outlineSpeed);
-		outlineSpread = num(p, "outlineSpread", outlineSpread);
-		outlineFill = num(p, "outlineFill", outlineFill);
-		theme = (int) num(p, "theme", theme);
+		for (Field f : fields()) {
+			String raw = p.getProperty(f.getName());
+			if (raw == null) continue;
+			try {
+				Class<?> t = f.getType();
+				if (t == boolean.class) f.setBoolean(null, Boolean.parseBoolean(raw.trim()));
+				else if (t == int.class) f.setInt(null, (int) Float.parseFloat(raw.trim()));
+				else if (t == float.class) f.setFloat(null, Float.parseFloat(raw.trim()));
+				else if (t == double.class) f.setDouble(null, Double.parseDouble(raw.trim()));
+			} catch (Exception ignored) {
+				// kaputter Wert -> Standard behalten
+			}
+		}
 	}
 
 	public static void save() {
 		Properties p = new Properties();
-		p.setProperty("hud", String.valueOf(hud));
-		p.setProperty("showFpsCps", String.valueOf(showFpsCps));
-		p.setProperty("showArmor", String.valueOf(showArmor));
-		p.setProperty("showEffects", String.valueOf(showEffects));
-		p.setProperty("hudOpacity", String.valueOf(hudOpacity));
-		p.setProperty("hitboxes", String.valueOf(hitboxes));
-		p.setProperty("hitboxesPlayersOnly", String.valueOf(hitboxesPlayersOnly));
-		p.setProperty("targetCrosshair", String.valueOf(targetCrosshair));
-		p.setProperty("toggleSprint", String.valueOf(toggleSprint));
-		p.setProperty("noHurtCam", String.valueOf(noHurtCam));
-		p.setProperty("savedTilt", String.valueOf(savedTilt));
-		p.setProperty("rainbowOutline", String.valueOf(rainbowOutline));
-		p.setProperty("outlineMode", String.valueOf(outlineMode));
-		p.setProperty("outlineHue", String.valueOf(outlineHue));
-		p.setProperty("outlineSaturation", String.valueOf(outlineSaturation));
-		p.setProperty("outlineOpacity", String.valueOf(outlineOpacity));
-		p.setProperty("outlineThickness", String.valueOf(outlineThickness));
-		p.setProperty("outlineSpeed", String.valueOf(outlineSpeed));
-		p.setProperty("outlineSpread", String.valueOf(outlineSpread));
-		p.setProperty("outlineFill", String.valueOf(outlineFill));
-		p.setProperty("theme", String.valueOf(theme));
+		for (Field f : fields()) {
+			try {
+				p.setProperty(f.getName(), String.valueOf(f.get(null)));
+			} catch (IllegalAccessException ignored) {
+			}
+		}
 		try {
 			Files.createDirectories(FILE.getParent());
 			try (Writer w = Files.newBufferedWriter(FILE)) {
-				p.store(w, "Blutgold PvP - true = an, false = aus. Im Spiel mit M einstellbar.");
+				p.store(w, "Blutgold PvP - im Spiel mit dem Menue (Standard: M) einstellbar");
 			}
 		} catch (IOException ignored) {
 		}
 	}
 
-	private static boolean bool(Properties p, String key, boolean def) {
-		return Boolean.parseBoolean(p.getProperty(key, String.valueOf(def)));
-	}
-
-	private static float num(Properties p, String key, float def) {
-		try {
-			return Float.parseFloat(p.getProperty(key, String.valueOf(def)));
-		} catch (NumberFormatException e) {
-			return def;
+	private static java.util.List<Field> fields() {
+		java.util.List<Field> out = new java.util.ArrayList<>();
+		for (Field f : Config.class.getDeclaredFields()) {
+			int m = f.getModifiers();
+			if (Modifier.isPublic(m) && Modifier.isStatic(m) && !Modifier.isFinal(m)) out.add(f);
 		}
+		return out;
 	}
 }

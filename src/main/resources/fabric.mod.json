@@ -3,7 +3,7 @@
 	"id": "blutgoldpvp",
 	"version": "${version}",
 	"name": "Blutgold PvP",
-	"description": "PvP-Komfort: rote Hitboxen, Ziel-Crosshair, CPS/FPS, Rüstungs- und Trank-HUD, Regenbogen-Block-Rahmen, Toggle-Sprint und kein Kamera-Wackeln.",
+	"description": "PvP-Komfort und Cosmetics: Hitboxen, Ziel-Crosshair, HUD, Combo- und Reach-Anzeige, Regenbogen-Block-Rahmen, Drachenflügel, Heiligenschein und Partikel. Menü mit Taste M.",
 	"authors": ["Ibrahim"],
 	"license": "CC0-1.0",
 	"icon": "assets/blutgoldpvp/icon.png",

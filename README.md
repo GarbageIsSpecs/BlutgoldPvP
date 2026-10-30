@@ -4,7 +4,7 @@ Client-Mod mit PvP-Komfort. Alles sind reine Anzeige-Hilfen, keine Cheats (kein 
 
 ## Features
 
-**Menü: Taste M** – alle Einstellungen (HUD, Hitboxen, Block-Rahmen mit Farbe/Deckkraft/Dicke/Tempo/Füllung, Komfort) und 6 Themes.
+**Menü: Taste M** – Tabs **PvP** (HUD, Info-Anzeigen, Hitboxen, Crosshair, Block-Rahmen, Komfort), **Cosmetics** (Drachenflügel, Heiligenschein, Partikel – nur für dich sichtbar), **Design** (6 Themes) und **Info**.
 
 | Feature | Taste | Beschreibung |
 |---|---|---|

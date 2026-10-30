@@ -59,8 +59,8 @@ public final class Hitboxes {
 			boolean hurt = living.hurtTime > 0;
 			Theme t = Theme.current();
 			int base = e instanceof Player ? t.accent() : t.highlight();
-			int color = hurt ? 0xFFFFFFFF : base;
-			int fill = hurt ? 0x30FFFFFF : Theme.withAlpha(base, 0.13f);
+			int color = hurt && Config.hitboxFlash ? 0xFFFFFFFF : base;
+			int fill = hurt && Config.hitboxFlash ? 0x30FFFFFF : Theme.withAlpha(base, 0.13f);
 			found.add(new Box(box, y + e.getEyeHeight(), color, fill));
 		}
 		boxes = List.copyOf(found);
@@ -78,6 +78,7 @@ public final class Hitboxes {
 				drawBox(p, buf, b.box(), b.fill());
 				drawEdges(p, buf, b.box(), b.color(), EDGE);
 				// Augenhöhe als dunklere Linie
+				if (!Config.hitboxEyeLine) continue;
 				AABB eye = new AABB(b.box().minX, b.eyeY(), b.box().minZ, b.box().maxX, b.eyeY(), b.box().maxZ);
 				drawEdges(p, buf, eye, Theme.darker(Theme.current().accent(), 0.55f), EDGE * 0.8);
 			}

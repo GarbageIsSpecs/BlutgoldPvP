@@ -47,7 +47,7 @@ public final class TargetCrosshair {
 	private static void draw(GuiGraphicsExtractor g, int color) {
 		int cx = g.guiWidth() / 2;
 		int cy = g.guiHeight() / 2;
-		int gap = 2, len = 4;
+		int gap = Math.round(Config.crosshairGap), len = 4;
 		// vier Arme mit dunklem Rand
 		bar(g, cx - gap - len, cy, len, 1, color);
 		bar(g, cx + gap + 1, cy, len, 1, color);
@@ -56,16 +56,18 @@ public final class TargetCrosshair {
 		// Mittelpunkt
 		bar(g, cx, cy, 1, 1, color);
 		// kleine Eck-Klammern
-		int r = 7;
+		int r = 5 + gap;
+		if (Config.crosshairBrackets) {
 		corner(g, cx - r, cy - r, 1, 1, color);
 		corner(g, cx + r, cy - r, -1, 1, color);
 		corner(g, cx - r, cy + r, 1, -1, color);
 		corner(g, cx + r, cy + r, -1, -1, color);
+		}
 
 		// Schlag-Abklingzeit als kleiner Balken (ersetzt den Vanilla-Indikator)
 		Minecraft mc = Minecraft.getInstance();
 		float strength = mc.player.getAttackStrengthScale(0.0f);
-		if (strength < 1.0f) {
+		if (Config.crosshairCooldown && strength < 1.0f) {
 			int w = 15;
 			int filled = (int) (strength * w);
 			g.fill(cx - 8, cy + 10, cx - 8 + w + 2, cy + 13, 0xA0000000);

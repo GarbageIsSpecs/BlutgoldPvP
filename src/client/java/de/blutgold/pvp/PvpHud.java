@@ -51,6 +51,43 @@ public final class PvpHud {
 			y = panel(g, font, 4, y, new String[] {fpsText, cpsText}, new int[] {WHITE, GOLD});
 		}
 
+		// Info-Anzeigen
+		java.util.List<String> info = new java.util.ArrayList<>();
+		java.util.List<Integer> infoColors = new java.util.ArrayList<>();
+		if (Config.showCoords) {
+			info.add(String.format("XYZ %d %d %d", player.getBlockX(), player.getBlockY(), player.getBlockZ()));
+			infoColors.add(WHITE);
+		}
+		if (Config.showDirection) {
+			String[] dirs = {"Süden", "Westen", "Norden", "Osten"};
+			int idx = Math.floorMod(Math.round(player.getYRot() / 90f), 4);
+			info.add("Richtung " + dirs[idx]);
+			infoColors.add(WHITE);
+		}
+		if (Config.showSpeed) {
+			double bps = Math.sqrt(Math.pow(player.getX() - player.xo, 2) + Math.pow(player.getZ() - player.zo, 2)) * 20;
+			info.add(String.format("Tempo %.1f m/s", bps));
+			infoColors.add(WHITE);
+		}
+		if (Config.showClock) {
+			info.add("Uhr " + java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")));
+			infoColors.add(WHITE);
+		}
+		if (Config.showCombo && CombatTracker.combo > 1) {
+			info.add("Combo " + CombatTracker.combo + "x");
+			infoColors.add(GOLD);
+		}
+		if (Config.showReach && CombatTracker.lastReach >= 0 && now - CombatTracker.lastHitTime < 2500) {
+			info.add(String.format("Reach %.2f", CombatTracker.lastReach));
+			infoColors.add(ACCENT);
+		}
+		if (!info.isEmpty()) {
+			y += 3;
+			int[] cols = new int[infoColors.size()];
+			for (int k = 0; k < cols.length; k++) cols[k] = infoColors.get(k);
+			y = panel(g, font, 4, y, info.toArray(new String[0]), cols);
+		}
+
 		if (Config.showEffects && !player.getActiveEffects().isEmpty()) {
 			y += 3;
 			int count = player.getActiveEffects().size();
@@ -75,10 +112,16 @@ public final class PvpHud {
 		int w = 0;
 		for (String l : lines) w = Math.max(w, font.width(l));
 		int h = lines.length * 10 + 4;
-		g.fill(x, y, x + w + 10, y + h, BG);
-		g.fill(x, y, x + 2, y + h, ACCENT);
+		if (Config.hudRight) {
+			x = g.guiWidth() - x - (w + 10);
+			g.fill(x, y, x + w + 10, y + h, BG);
+			g.fill(x + w + 8, y, x + w + 10, y + h, ACCENT);
+		} else {
+			g.fill(x, y, x + w + 10, y + h, BG);
+			g.fill(x, y, x + 2, y + h, ACCENT);
+		}
 		for (int i = 0; i < lines.length; i++) {
-			g.text(font, lines[i], x + 6, y + 3 + i * 10, colors[i], true);
+			g.text(font, lines[i], x + (Config.hudRight ? 4 : 6), y + 3 + i * 10, colors[i], Config.hudShadow);
 		}
 		return y + h;
 	}
@@ -102,9 +145,9 @@ public final class PvpHud {
 			if (stack.isDamageableItem()) {
 				int left = stack.getMaxDamage() - stack.getDamageValue();
 				float ratio = left / (float) stack.getMaxDamage();
-				g.text(font, String.valueOf(left), x + 22, y + 5, durabilityColor(ratio), true);
+				g.text(font, String.valueOf(left), x + 22, y + 5, durabilityColor(ratio), Config.hudShadow);
 			} else if (stack.getCount() > 1) {
-				g.text(font, "x" + stack.getCount(), x + 22, y + 5, GREY, true);
+				g.text(font, "x" + stack.getCount(), x + 22, y + 5, GREY, Config.hudShadow);
 			}
 			y += 18;
 		}

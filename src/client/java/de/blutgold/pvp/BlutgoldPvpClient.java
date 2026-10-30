@@ -47,6 +47,11 @@ public class BlutgoldPvpClient implements ClientModInitializer {
 		LevelExtractionEvents.END_EXTRACTION.register(RainbowOutline::extract);
 		LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(RainbowOutline::render);
 
+		// Cosmetics (nur für dich sichtbar)
+		LevelExtractionEvents.END_EXTRACTION.register(Cosmetics::extract);
+		LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(Cosmetics::render);
+		CombatTracker.register();
+
 		// Crosshair wird rot, wenn ein Gegner im Visier ist
 		HudElementRegistry.replaceElement(VanillaHudElements.CROSSHAIR, TargetCrosshair::wrap);
 
@@ -58,6 +63,8 @@ public class BlutgoldPvpClient implements ClientModInitializer {
 	}
 
 	private static void tick(Minecraft mc) {
+		Cosmetics.tick(mc);
+		CombatTracker.tick(mc);
 		while (keyMenu.consumeClick()) {
 			if (mc.gui.screen() == null) mc.gui.setScreen(new BlutgoldScreen());
 		}
@@ -91,6 +98,18 @@ public class BlutgoldPvpClient implements ClientModInitializer {
 			boolean forward = mc.options.keyUp.isDown();
 			mc.options.keySprint.setDown(forward && !mc.player.isShiftKeyDown());
 		}
+	}
+
+	/** Für die Info-Seite im Menü: Name + aktuell belegte Taste. */
+	public static String[][] keyList() {
+		KeyMapping[] keys = {keyMenu, keyHitboxes, keyHud, keySprint, keyHurtCam, keyOutline};
+		String[] names = {"Menü öffnen", "Hitboxen an/aus", "PvP-HUD an/aus", "Toggle-Sprint", "Kamera-Wackeln", "Block-Rahmen an/aus"};
+		String[][] out = new String[keys.length][2];
+		for (int i = 0; i < keys.length; i++) {
+			out[i][0] = names[i];
+			out[i][1] = keys[i] == null ? "?" : keys[i].getTranslatedKeyMessage().getString();
+		}
+		return out;
 	}
 
 	/** Nach Änderung im Menü erneut anwenden. */

@@ -24,10 +24,12 @@ public class BlutgoldScreen extends Screen {
 	private static final int SIDEBAR = 98;
 	private static final int CAT_H = 22;
 
-	/** Zuletzt geöffnete Kategorie merken. */
-	private static int selected = 0;
+	private static final String[] TAB_NAMES = {"PvP", "Cosmetics", "Design", "Info"};
+	/** Zuletzt geöffneter Tab und Kategorie je Tab merken. */
+	private static int tab = 0;
+	private static final int[] selectedPerTab = new int[TAB_NAMES.length];
 
-	private final List<Category> categories = new ArrayList<>();
+	private final List<List<Category>> tabs = new ArrayList<>();
 	private double scroll = 0;
 	private Slider dragging = null;
 
@@ -36,25 +38,58 @@ public class BlutgoldScreen extends Screen {
 
 	public BlutgoldScreen() {
 		super(Component.literal("Blutgold PvP"));
-		buildCategories();
+		for (int i = 0; i < TAB_NAMES.length; i++) tabs.add(new ArrayList<>());
+		buildPvp(tabs.get(0));
+		buildCosmetics(tabs.get(1));
+		buildDesign(tabs.get(2));
+		buildInfo(tabs.get(3));
+	}
+
+	private List<Category> cats() {
+		return tabs.get(tab);
+	}
+
+	private int selected() {
+		return Math.min(selectedPerTab[tab], cats().size() - 1);
 	}
 
 	// ---------------------------------------------------------------- Inhalte
 
-	private void buildCategories() {
-		categories.add(new Category("HUD", List.of(
+	private void buildPvp(List<Category> c) {
+		c.add(new Category("HUD", List.of(
+				new Header("Anzeigen"),
 				new Toggle("HUD anzeigen", () -> Config.hud, v -> Config.hud = v),
 				new Toggle("FPS & CPS", () -> Config.showFpsCps, v -> Config.showFpsCps = v),
 				new Toggle("Rüstung & Waffe", () -> Config.showArmor, v -> Config.showArmor = v),
 				new Toggle("Trank-Effekte", () -> Config.showEffects, v -> Config.showEffects = v),
+				new Header("Aussehen"),
+				new Choice("Position", new String[] {"Links", "Rechts"}, () -> Config.hudRight ? 1 : 0, v -> Config.hudRight = v == 1),
+				new Toggle("Text-Schatten", () -> Config.hudShadow, v -> Config.hudShadow = v),
 				new Slider("Hintergrund-Deckkraft", 0, 1, 0.05, () -> Config.hudOpacity, v -> Config.hudOpacity = (float) v, BlutgoldScreen::percent)
 		)));
-		categories.add(new Category("Hitboxen", List.of(
+		c.add(new Category("Info-Anzeigen", List.of(
+				new Header("Welt"),
+				new Toggle("Koordinaten", () -> Config.showCoords, v -> Config.showCoords = v),
+				new Toggle("Himmelsrichtung", () -> Config.showDirection, v -> Config.showDirection = v),
+				new Toggle("Lauftempo", () -> Config.showSpeed, v -> Config.showSpeed = v),
+				new Toggle("Uhrzeit", () -> Config.showClock, v -> Config.showClock = v),
+				new Header("Kampf"),
+				new Toggle("Combo-Zähler", () -> Config.showCombo, v -> Config.showCombo = v),
+				new Toggle("Reichweite pro Schlag", () -> Config.showReach, v -> Config.showReach = v)
+		)));
+		c.add(new Category("Hitboxen", List.of(
 				new Toggle("Hitboxen anzeigen", () -> Config.hitboxes, v -> Config.hitboxes = v),
 				new Toggle("Nur Spieler", () -> Config.hitboxesPlayersOnly, v -> Config.hitboxesPlayersOnly = v),
-				new Toggle("Ziel-Crosshair", () -> Config.targetCrosshair, v -> Config.targetCrosshair = v)
+				new Toggle("Linie auf Augenhöhe", () -> Config.hitboxEyeLine, v -> Config.hitboxEyeLine = v),
+				new Toggle("Aufblitzen bei Treffer", () -> Config.hitboxFlash, v -> Config.hitboxFlash = v)
 		)));
-		categories.add(new Category("Block-Rahmen", List.of(
+		c.add(new Category("Crosshair", List.of(
+				new Toggle("Ziel-Crosshair", () -> Config.targetCrosshair, v -> Config.targetCrosshair = v),
+				new Toggle("Abklingzeit-Balken", () -> Config.crosshairCooldown, v -> Config.crosshairCooldown = v),
+				new Toggle("Eck-Klammern", () -> Config.crosshairBrackets, v -> Config.crosshairBrackets = v),
+				new Slider("Abstand zur Mitte", 1, 6, 1, () -> Config.crosshairGap, v -> Config.crosshairGap = (float) v, v -> String.valueOf((int) Math.round(v)))
+		)));
+		c.add(new Category("Block-Rahmen", List.of(
 				new Preview(),
 				new Toggle("Rahmen anzeigen", () -> Config.rainbowOutline, v -> Config.rainbowOutline = v),
 				new Choice("Farbmodus", RainbowOutline.MODES, () -> Config.outlineMode, v -> Config.outlineMode = v),
@@ -69,7 +104,7 @@ public class BlutgoldScreen extends Screen {
 						.visibleIf(() -> Config.outlineMode != 1),
 				new Slider("Füllung", 0, 0.5, 0.02, () -> Config.outlineFill, v -> Config.outlineFill = (float) v, v -> v < 0.005 ? "aus" : percent(v))
 		)));
-		categories.add(new Category("Komfort", List.of(
+		c.add(new Category("Komfort", List.of(
 				new Toggle("Toggle-Sprint", () -> Config.toggleSprint, v -> {
 					Config.toggleSprint = v;
 					if (!v && minecraft != null) minecraft.options.keySprint.setDown(false);
@@ -79,9 +114,63 @@ public class BlutgoldScreen extends Screen {
 					BlutgoldPvpClient.reapplyHurtCam();
 				})
 		)));
+	}
+
+	private void buildCosmetics(List<Category> c) {
+		c.add(new Category("Flügel", List.of(
+				new Label("Nur für dich sichtbar – drück F5, um sie zu sehen."),
+				new Toggle("Flügel tragen", () -> Config.wings, v -> Config.wings = v),
+				new Choice("Farbe", Cosmetics.WING_COLORS, () -> Config.wingColor, v -> Config.wingColor = v),
+				new Toggle("Leuchtende Adern", () -> Config.wingVeins, v -> Config.wingVeins = v),
+				new Slider("Größe", 0.5, 1.6, 0.05, () -> Config.wingScale, v -> Config.wingScale = (float) v, v -> String.format("%.2fx", v)),
+				new Slider("Ausbreitung", 0, 1, 0.05, () -> Config.wingSpread, v -> Config.wingSpread = (float) v, BlutgoldScreen::percent),
+				new Slider("Schlag-Tempo", 0, 2.5, 0.05, () -> Config.wingFlapSpeed, v -> Config.wingFlapSpeed = (float) v, v -> String.format("%.2fx", v)),
+				new Slider("Deckkraft", 0.2, 1, 0.05, () -> Config.wingOpacity, v -> Config.wingOpacity = (float) v, BlutgoldScreen::percent),
+				new Toggle("Nur beim Laufen schlagen", () -> Config.wingFlapOnlyMoving, v -> Config.wingFlapOnlyMoving = v)
+		)));
+		c.add(new Category("Heiligenschein", List.of(
+				new Label("Nur für dich sichtbar – drück F5, um ihn zu sehen."),
+				new Toggle("Heiligenschein tragen", () -> Config.halo, v -> Config.halo = v),
+				new Choice("Farbe", Cosmetics.HALO_COLORS, () -> Config.haloColor, v -> Config.haloColor = v),
+				new Toggle("Zacken", () -> Config.haloSpikes, v -> Config.haloSpikes = v),
+				new Toggle("Schweben", () -> Config.haloBob, v -> Config.haloBob = v),
+				new Slider("Größe", 0.5, 1.8, 0.05, () -> Config.haloSize, v -> Config.haloSize = (float) v, v -> String.format("%.2fx", v)),
+				new Slider("Höhe", 0.15, 0.8, 0.05, () -> Config.haloHeight, v -> Config.haloHeight = (float) v, v -> String.format("%.2f", v)),
+				new Slider("Dreh-Tempo", 0, 3, 0.1, () -> Config.haloSpin, v -> Config.haloSpin = (float) v, v -> String.format("%.1fx", v))
+		)));
+		c.add(new Category("Partikel", List.of(
+				new Toggle("Partikel aktiv", () -> Config.particles, v -> Config.particles = v),
+				new Choice("Art", Cosmetics.PARTICLE_TYPES, () -> Config.particleType, v -> Config.particleType = v),
+				new Slider("Menge", 0.05, 1, 0.05, () -> Config.particleAmount, v -> Config.particleAmount = (float) v, BlutgoldScreen::percent),
+				new Toggle("Nur beim Laufen", () -> Config.particlesOnlyMoving, v -> Config.particlesOnlyMoving = v),
+				new Toggle("Auch in Ego-Sicht", () -> Config.particlesFirstPerson, v -> Config.particlesFirstPerson = v)
+		)));
+	}
+
+	private void buildDesign(List<Category> c) {
 		List<Row> themes = new ArrayList<>();
 		for (int i = 0; i < Theme.ALL.length; i++) themes.add(new ThemeCard(i));
-		categories.add(new Category("Themes", themes));
+		c.add(new Category("Themes", themes));
+		c.add(new Category("Menü", List.of(
+				new Slider("Hintergrund abdunkeln", 0, 0.9, 0.05, () -> Config.menuDim, v -> Config.menuDim = (float) v, BlutgoldScreen::percent),
+				new Label("Das Theme färbt Menü, HUD, Crosshair, Hitboxen,"),
+				new Label("Theme-Flügel und den Theme-Rahmen.")
+		)));
+	}
+
+	private void buildInfo(List<Category> c) {
+		c.add(new Category("Über", List.of(
+				new Header("Blutgold PvP v1.3.0"),
+				new Label("Gemacht von Ibrahim (GarbageIsSpecs)."),
+				new Label("Reine Anzeige-Hilfen und Cosmetics – keine Cheats."),
+				new Label("Cosmetics sieht nur, wer die Mod selbst hat."),
+				new Label("Einstellungen: config/blutgoldpvp.properties")
+		)));
+		List<Row> keys = new ArrayList<>();
+		keys.add(new Label("Ändern: Optionen > Steuerung > Tastenbelegung"));
+		String[][] list = BlutgoldPvpClient.keyList();
+		for (String[] k : list) keys.add(new KeyRow(k[0], k[1]));
+		c.add(new Category("Tasten", keys));
 	}
 
 	private static String percent(double v) {
@@ -114,7 +203,7 @@ public class BlutgoldScreen extends Screen {
 		Theme t = Theme.current();
 		Font font = this.font;
 
-		g.fill(0, 0, width, height, 0x66000000);
+		g.fill(0, 0, width, height, Theme.withAlpha(0xFF000000, Config.menuDim));
 
 		// Fenster mit Schatten
 		g.fill(px + 3, py + 3, px + pw + 3, py + ph + 3, 0x55000000);
@@ -128,13 +217,29 @@ public class BlutgoldScreen extends Screen {
 		g.fill(px + 12, py + 8, px + 14, py + 16, t.highlight());
 		g.text(font, "BLUTGOLD", px + 19, py + 8, t.accent(), false);
 		g.text(font, "PVP", px + 19 + font.width("BLUTGOLD "), py + 8, t.text(), false);
-		String hint = "M / ESC zum Schließen";
-		g.text(font, hint, px + pw - 8 - font.width(hint), py + 8, t.muted(), false);
+		// Tabs oben rechts
+		int tx = px + pw - 6;
+		for (int i = TAB_NAMES.length - 1; i >= 0; i--) {
+			int w = font.width(TAB_NAMES[i]) + 14;
+			tx -= w;
+			boolean sel = i == tab;
+			boolean hov = in(mouseX, mouseY, tx, py + 3, w, TOP - 6);
+			if (sel) {
+				g.fill(tx, py + 3, tx + w, py + TOP - 3, t.panelLight());
+				g.fill(tx, py + TOP - 4, tx + w, py + TOP - 3, t.accent());
+			} else if (hov) {
+				g.fill(tx, py + 3, tx + w, py + TOP - 3, Theme.withAlpha(t.panelLight(), 0.6f));
+			}
+			g.text(font, TAB_NAMES[i], tx + 7, py + 8, sel ? t.text() : t.muted(), false);
+			tx -= 3;
+		}
 
 		// Seitenleiste
 		int sy = py + TOP;
 		g.fill(px, sy, px + SIDEBAR, py + ph, t.panel());
 		g.fill(px + SIDEBAR - 1, sy, px + SIDEBAR, py + ph, Theme.withAlpha(t.accent(), 0.2f));
+		List<Category> categories = cats();
+		int selected = selected();
 		for (int i = 0; i < categories.size(); i++) {
 			int cy = sy + 6 + i * CAT_H;
 			boolean sel = i == selected;
@@ -147,7 +252,7 @@ public class BlutgoldScreen extends Screen {
 			}
 			g.text(font, categories.get(i).name, px + 12, cy + 7, sel ? t.text() : t.muted(), false);
 		}
-		String ver = "v1.2.0";
+		String ver = "v1.3.0  ·  ESC";
 		g.text(font, ver, px + 12, py + ph - 14, Theme.withAlpha(t.muted(), 0.6f), false);
 
 		// Inhalt
@@ -184,7 +289,7 @@ public class BlutgoldScreen extends Screen {
 
 	private int contentHeight() {
 		int total = 0;
-		for (Row r : categories.get(selected).rows) if (r.visible()) total += r.height() + 4;
+		for (Row r : cats().get(selected()).rows) if (r.visible()) total += r.height() + 4;
 		return total;
 	}
 
@@ -214,13 +319,29 @@ public class BlutgoldScreen extends Screen {
 		double mx = event.x(), my = event.y();
 		int button = event.button();
 
+		// Tab wechseln
+		int tx = px + pw - 6;
+		for (int i = TAB_NAMES.length - 1; i >= 0; i--) {
+			int w = font.width(TAB_NAMES[i]) + 14;
+			tx -= w;
+			if (in(mx, my, tx, py + 3, w, TOP - 6)) {
+				if (tab != i) {
+					tab = i;
+					scroll = 0;
+				}
+				return true;
+			}
+			tx -= 3;
+		}
+
 		// Kategorie wechseln
 		int sy = py + TOP;
+		List<Category> categories = cats();
 		for (int i = 0; i < categories.size(); i++) {
 			int cy = sy + 6 + i * CAT_H;
 			if (in(mx, my, px, cy, SIDEBAR - 1, CAT_H)) {
-				if (selected != i) {
-					selected = i;
+				if (selected() != i) {
+					selectedPerTab[tab] = i;
 					scroll = 0;
 				}
 				return true;
@@ -232,7 +353,7 @@ public class BlutgoldScreen extends Screen {
 		int top = contentTop();
 		if (my > top + 16 && my < contentBottom()) {
 			int y = top + 18 - (int) scroll;
-			for (Row row : categories.get(selected).rows) {
+			for (Row row : categories.get(selected()).rows) {
 				if (!row.visible()) continue;
 				int h = row.height();
 				if (in(mx, my, cx, y, cw, h)) {
@@ -420,6 +541,61 @@ public class BlutgoldScreen extends Screen {
 		void click(int button) {
 			int d = button == 1 ? -1 : 1;
 			set.accept(Math.floorMod(get.getAsInt() + d, options.length));
+		}
+	}
+
+	/** Zwischenüberschrift. */
+	private static final class Header extends Row {
+		private final String text;
+
+		Header(String text) {
+			this.text = text;
+		}
+
+		@Override
+		int height() { return 12; }
+
+		@Override
+		void draw(GuiGraphicsExtractor g, Font font, Theme t, int x, int y, int w, boolean hover) {
+			g.text(font, text, x + 2, y + 2, t.accent(), false);
+			int lx = x + 8 + font.width(text);
+			g.fill(lx, y + 6, x + w, y + 7, Theme.withAlpha(t.accent(), 0.25f));
+		}
+	}
+
+	/** Reiner Hinweistext. */
+	private static final class Label extends Row {
+		private final String text;
+
+		Label(String text) {
+			this.text = text;
+		}
+
+		@Override
+		int height() { return 12; }
+
+		@Override
+		void draw(GuiGraphicsExtractor g, Font font, Theme t, int x, int y, int w, boolean hover) {
+			g.text(font, text, x + 2, y + 2, t.muted(), false);
+		}
+	}
+
+	/** Zeile mit Tastenbelegung. */
+	private static final class KeyRow extends Row {
+		private final String name, key;
+
+		KeyRow(String name, String key) {
+			this.name = name;
+			this.key = key;
+		}
+
+		@Override
+		void draw(GuiGraphicsExtractor g, Font font, Theme t, int x, int y, int w, boolean hover) {
+			rowBg(g, t, x, y, w, height(), false);
+			g.text(font, name, x + 8, y + 6, t.text(), false);
+			int kw = font.width(key) + 10;
+			g.fill(x + w - 8 - kw, y + 3, x + w - 8, y + height() - 3, t.panelLight());
+			g.text(font, key, x + w - 8 - kw + 5, y + 6, t.highlight(), false);
 		}
 	}
 
