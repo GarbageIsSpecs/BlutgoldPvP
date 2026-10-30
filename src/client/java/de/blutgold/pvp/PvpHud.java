@@ -125,8 +125,8 @@ public final class PvpHud {
 
 	/** Zählt Klicks über die Angriffs-/Benutzen-Taste (jeder Druck = 1 Klick). */
 	private static void countClicks(Minecraft mc, long now) {
-		boolean left = mc.screen == null && mc.options.keyAttack.isDown();
-		boolean right = mc.screen == null && mc.options.keyUse.isDown();
+		boolean left = mc.gui.screen() == null && mc.options.keyAttack.isDown();
+		boolean right = mc.gui.screen() == null && mc.options.keyUse.isDown();
 		if (left && !wasLeft) leftClicks.addLast(now);
 		if (right && !wasRight) rightClicks.addLast(now);
 		wasLeft = left;

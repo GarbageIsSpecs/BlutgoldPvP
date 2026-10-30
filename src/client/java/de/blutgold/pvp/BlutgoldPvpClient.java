@@ -82,7 +82,7 @@ public class BlutgoldPvpClient implements ClientModInitializer {
 		applyHurtCam(mc);
 
 		// Toggle-Sprint: hält die Sprint-Taste für dich gedrückt, solange du vorwärts läufst
-		if (Config.toggleSprint && mc.player != null && mc.screen == null) {
+		if (Config.toggleSprint && mc.player != null && mc.gui.screen() == null) {
 			boolean forward = mc.options.keyUp.isDown();
 			mc.options.keySprint.setDown(forward && !mc.player.isShiftKeyDown());
 		}
