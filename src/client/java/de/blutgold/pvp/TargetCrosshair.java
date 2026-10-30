@@ -26,7 +26,7 @@ public final class TargetCrosshair {
 			if (target == null) {
 				original.extractRenderState(graphics, deltaTracker);
 			} else {
-				draw(graphics, target instanceof Player ? RED : ORANGE);
+				draw(graphics, target instanceof Player ? Theme.current().accent() : Theme.current().highlight());
 			}
 		};
 	}

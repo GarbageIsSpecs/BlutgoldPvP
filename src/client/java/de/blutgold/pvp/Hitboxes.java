@@ -57,8 +57,10 @@ public final class Hitboxes {
 			AABB box = e.getBoundingBox().move(x - e.getX(), y - e.getY(), z - e.getZ());
 
 			boolean hurt = living.hurtTime > 0;
-			int color = hurt ? 0xFFFFD24A : (e instanceof Player ? 0xFFFF2222 : 0xFFFF7A1E);
-			int fill = hurt ? 0x30FFD24A : 0x22FF1010;
+			Theme t = Theme.current();
+			int base = e instanceof Player ? t.accent() : t.highlight();
+			int color = hurt ? 0xFFFFFFFF : base;
+			int fill = hurt ? 0x30FFFFFF : Theme.withAlpha(base, 0.13f);
 			found.add(new Box(box, y + e.getEyeHeight(), color, fill));
 		}
 		boxes = List.copyOf(found);
@@ -77,7 +79,7 @@ public final class Hitboxes {
 				drawEdges(p, buf, b.box(), b.color(), EDGE);
 				// Augenhöhe als dunklere Linie
 				AABB eye = new AABB(b.box().minX, b.eyeY(), b.box().minZ, b.box().maxX, b.eyeY(), b.box().maxZ);
-				drawEdges(p, buf, eye, 0xFF8A0000, EDGE * 0.8);
+				drawEdges(p, buf, eye, Theme.darker(Theme.current().accent(), 0.55f), EDGE * 0.8);
 			}
 		});
 		pose.popPose();

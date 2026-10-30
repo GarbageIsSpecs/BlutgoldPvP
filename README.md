@@ -4,6 +4,8 @@ Client-Mod mit PvP-Komfort. Alles sind reine Anzeige-Hilfen, keine Cheats (kein 
 
 ## Features
 
+**Menü: Taste M** – alle Einstellungen (HUD, Hitboxen, Block-Rahmen mit Farbe/Deckkraft/Dicke/Tempo/Füllung, Komfort) und 6 Themes.
+
 | Feature | Taste | Beschreibung |
 |---|---|---|
 | Rote Hitboxen | **H** | Roter Rahmen + leichte Füllung um Spieler, dunkle Linie auf Augenhöhe. Blitzt gold, wenn das Ziel getroffen wird. Nicht durch Wände, unsichtbare Spieler bleiben unsichtbar. |

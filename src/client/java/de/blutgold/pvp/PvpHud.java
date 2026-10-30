@@ -14,11 +14,8 @@ import net.minecraft.world.item.ItemStack;
 
 /** FPS + CPS oben links, aktive Tränke darunter, Rüstung + Waffe unten rechts. */
 public final class PvpHud {
-	private static final int BG = 0x90180000;
-	private static final int ACCENT = 0xFFE0202A;
-	private static final int GOLD = 0xFFFFC94A;
-	private static final int WHITE = 0xFFFFFFFF;
-	private static final int GREY = 0xFFB8A8A8;
+	// Farben kommen aus dem gewählten Theme (Menü: M)
+	private static int BG, ACCENT, GOLD, WHITE, GREY;
 
 	private static final Deque<Long> leftClicks = new ArrayDeque<>();
 	private static final Deque<Long> rightClicks = new ArrayDeque<>();
@@ -39,6 +36,12 @@ public final class PvpHud {
 		countClicks(mc, now);
 
 		if (!Config.hud) return;
+		Theme t = Theme.current();
+		BG = Theme.withAlpha(t.bg(), Config.hudOpacity);
+		ACCENT = t.accent();
+		GOLD = t.highlight();
+		WHITE = t.text();
+		GREY = t.muted();
 		Font font = mc.font;
 		int y = 4;
 

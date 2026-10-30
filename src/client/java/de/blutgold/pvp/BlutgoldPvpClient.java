@@ -24,6 +24,7 @@ public class BlutgoldPvpClient implements ClientModInitializer {
 	private static KeyMapping keySprint;
 	private static KeyMapping keyHurtCam;
 	private static KeyMapping keyOutline;
+	private static KeyMapping keyMenu;
 	private static boolean hurtCamApplied = false;
 
 	@Override
@@ -35,6 +36,7 @@ public class BlutgoldPvpClient implements ClientModInitializer {
 		keyHud = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.blutgoldpvp.hud", InputConstants.Type.KEYBOARD, SDLScancode.SDL_SCANCODE_J, category));
 		keySprint = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.blutgoldpvp.sprint", InputConstants.Type.KEYBOARD, SDLScancode.SDL_SCANCODE_K, category));
 		keyHurtCam = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.blutgoldpvp.hurtcam", InputConstants.Type.KEYBOARD, SDLScancode.SDL_SCANCODE_N, category));
+		keyMenu = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.blutgoldpvp.menu", InputConstants.Type.KEYBOARD, SDLScancode.SDL_SCANCODE_M, category));
 		keyOutline = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.blutgoldpvp.outline", InputConstants.Type.KEYBOARD, SDLScancode.SDL_SCANCODE_O, category));
 
 		// Rote Hitboxen in der Welt
@@ -56,6 +58,9 @@ public class BlutgoldPvpClient implements ClientModInitializer {
 	}
 
 	private static void tick(Minecraft mc) {
+		while (keyMenu.consumeClick()) {
+			if (mc.gui.screen() == null) mc.gui.setScreen(new BlutgoldScreen());
+		}
 		while (keyHitboxes.consumeClick()) {
 			Config.hitboxes = !Config.hitboxes;
 			notify(mc, "Hitboxen", Config.hitboxes);
@@ -86,6 +91,11 @@ public class BlutgoldPvpClient implements ClientModInitializer {
 			boolean forward = mc.options.keyUp.isDown();
 			mc.options.keySprint.setDown(forward && !mc.player.isShiftKeyDown());
 		}
+	}
+
+	/** Nach Änderung im Menü erneut anwenden. */
+	public static void reapplyHurtCam() {
+		hurtCamApplied = false;
 	}
 
 	/** Setzt die Vanilla-Option "Schadensneigung" auf 0 (bzw. zurück). */
