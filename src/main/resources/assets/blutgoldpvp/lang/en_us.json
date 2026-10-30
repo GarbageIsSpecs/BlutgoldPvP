@@ -3,5 +3,6 @@
 	"key.blutgoldpvp.hitboxes": "Toggle hitboxes",
 	"key.blutgoldpvp.hud": "Toggle PvP HUD",
 	"key.blutgoldpvp.sprint": "Toggle auto sprint",
-	"key.blutgoldpvp.hurtcam": "Toggle hurt camera shake"
+	"key.blutgoldpvp.hurtcam": "Toggle hurt camera shake",
+	"key.blutgoldpvp.outline": "Toggle rainbow block outline"
 }

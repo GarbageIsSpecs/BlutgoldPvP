@@ -3,5 +3,6 @@
 	"key.blutgoldpvp.hitboxes": "Hitboxen an/aus",
 	"key.blutgoldpvp.hud": "PvP-HUD an/aus",
 	"key.blutgoldpvp.sprint": "Toggle-Sprint an/aus",
-	"key.blutgoldpvp.hurtcam": "Kamera-Wackeln an/aus"
+	"key.blutgoldpvp.hurtcam": "Kamera-Wackeln an/aus",
+	"key.blutgoldpvp.outline": "Regenbogen-Rahmen an/aus"
 }

@@ -10,6 +10,7 @@ Client-Mod mit PvP-Komfort. Alles sind reine Anzeige-Hilfen, keine Cheats (kein 
 | Ziel-Crosshair | – | Crosshair wird rot (Spieler) bzw. orange (Mobs), sobald ein Gegner in Schlagreichweite im Visier ist. Mit Abklingzeit-Balken. |
 | PvP-HUD | **J** | FPS und CPS (links \| rechts) oben links, aktive Tränke mit Stufe und Restzeit darunter, Rüstung + Waffe mit Haltbarkeit unten rechts. |
 | Toggle-Sprint | **K** | Du sprintest automatisch, solange du vorwärts läufst. |
+| Regenbogen-Rahmen | **O** | Animierter Regenbogen-Rahmen um den Block, auf den du schaust. Ohne Resource Pack, ohne Core Shaders. |
 | Kein Kamera-Wackeln | **N** | Schaltet das Wackeln bei Treffern ab (nutzt die Vanilla-Option „Schadensneigung“). |
 
 Tasten kannst du unter *Optionen → Steuerung → Tastenbelegung → Blutgold PvP* ändern.

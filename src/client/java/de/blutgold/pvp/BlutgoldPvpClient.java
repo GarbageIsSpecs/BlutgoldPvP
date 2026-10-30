@@ -23,6 +23,7 @@ public class BlutgoldPvpClient implements ClientModInitializer {
 	private static KeyMapping keyHud;
 	private static KeyMapping keySprint;
 	private static KeyMapping keyHurtCam;
+	private static KeyMapping keyOutline;
 	private static boolean hurtCamApplied = false;
 
 	@Override
@@ -34,10 +35,15 @@ public class BlutgoldPvpClient implements ClientModInitializer {
 		keyHud = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.blutgoldpvp.hud", InputConstants.Type.KEYBOARD, SDLScancode.SDL_SCANCODE_J, category));
 		keySprint = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.blutgoldpvp.sprint", InputConstants.Type.KEYBOARD, SDLScancode.SDL_SCANCODE_K, category));
 		keyHurtCam = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.blutgoldpvp.hurtcam", InputConstants.Type.KEYBOARD, SDLScancode.SDL_SCANCODE_N, category));
+		keyOutline = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.blutgoldpvp.outline", InputConstants.Type.KEYBOARD, SDLScancode.SDL_SCANCODE_O, category));
 
 		// Rote Hitboxen in der Welt
 		LevelExtractionEvents.END_EXTRACTION.register(Hitboxes::extract);
 		LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(Hitboxes::render);
+
+		// Regenbogen-Rahmen um den anvisierten Block
+		LevelExtractionEvents.END_EXTRACTION.register(RainbowOutline::extract);
+		LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(RainbowOutline::render);
 
 		// Crosshair wird rot, wenn ein Gegner im Visier ist
 		HudElementRegistry.replaceElement(VanillaHudElements.CROSSHAIR, TargetCrosshair::wrap);
@@ -67,6 +73,10 @@ public class BlutgoldPvpClient implements ClientModInitializer {
 			Config.noHurtCam = !Config.noHurtCam;
 			hurtCamApplied = false;
 			notify(mc, "Kein Kamera-Wackeln", Config.noHurtCam);
+		}
+		while (keyOutline.consumeClick()) {
+			Config.rainbowOutline = !Config.rainbowOutline;
+			notify(mc, "Regenbogen-Rahmen", Config.rainbowOutline);
 		}
 
 		applyHurtCam(mc);

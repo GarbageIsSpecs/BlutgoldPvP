@@ -100,7 +100,7 @@ public final class Hitboxes {
 		}
 	}
 
-	private static void drawBox(PoseStack.Pose p, VertexConsumer v, AABB b, int c) {
+	static void drawBox(PoseStack.Pose p, VertexConsumer v, AABB b, int c) {
 		float x0 = (float) b.minX, y0 = (float) b.minY, z0 = (float) b.minZ;
 		float x1 = (float) b.maxX, y1 = (float) b.maxY, z1 = (float) b.maxZ;
 		quad(p, v, c, x0, y0, z0, x1, y0, z0, x1, y1, z0, x0, y1, z0);

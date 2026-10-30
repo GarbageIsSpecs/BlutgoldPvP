@@ -20,6 +20,7 @@ public final class Config {
 	public static boolean showEffects = true;
 	public static boolean toggleSprint = false;
 	public static boolean noHurtCam = true;
+	public static boolean rainbowOutline = true;
 	/** Ursprüngliche Stärke des Kamera-Wackelns, damit wir sie wiederherstellen können. */
 	public static double savedTilt = 1.0;
 
@@ -47,6 +48,7 @@ public final class Config {
 		showEffects = bool(p, "showEffects", showEffects);
 		toggleSprint = bool(p, "toggleSprint", toggleSprint);
 		noHurtCam = bool(p, "noHurtCam", noHurtCam);
+		rainbowOutline = bool(p, "rainbowOutline", rainbowOutline);
 		try {
 			savedTilt = Double.parseDouble(p.getProperty("savedTilt", String.valueOf(savedTilt)));
 		} catch (NumberFormatException ignored) {
@@ -64,6 +66,7 @@ public final class Config {
 		p.setProperty("showEffects", String.valueOf(showEffects));
 		p.setProperty("toggleSprint", String.valueOf(toggleSprint));
 		p.setProperty("noHurtCam", String.valueOf(noHurtCam));
+		p.setProperty("rainbowOutline", String.valueOf(rainbowOutline));
 		p.setProperty("savedTilt", String.valueOf(savedTilt));
 		try {
 			Files.createDirectories(FILE.getParent());
