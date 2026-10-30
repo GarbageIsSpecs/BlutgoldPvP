@@ -81,7 +81,7 @@ public final class Config {
 	public static float haloSize = 1.0f;
 	public static float haloHeight = 0.35f;
 	public static float haloSpin = 1.0f;
-	public static boolean haloSpikes = true;
+	public static float haloGlow = 1.0f;
 	public static boolean haloBob = true;
 
 	// ---------------- Partikel

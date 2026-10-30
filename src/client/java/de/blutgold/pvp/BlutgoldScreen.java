@@ -132,11 +132,11 @@ public class BlutgoldScreen extends Screen {
 				new Label("Nur für dich sichtbar – drück F5, um ihn zu sehen."),
 				new Toggle("Heiligenschein tragen", () -> Config.halo, v -> Config.halo = v),
 				new Choice("Farbe", Cosmetics.HALO_COLORS, () -> Config.haloColor, v -> Config.haloColor = v),
-				new Toggle("Zacken", () -> Config.haloSpikes, v -> Config.haloSpikes = v),
+				new Slider("Glow", 0.3, 2, 0.05, () -> Config.haloGlow, v -> Config.haloGlow = (float) v, BlutgoldScreen::percent),
 				new Toggle("Schweben", () -> Config.haloBob, v -> Config.haloBob = v),
 				new Slider("Größe", 0.5, 1.8, 0.05, () -> Config.haloSize, v -> Config.haloSize = (float) v, v -> String.format("%.2fx", v)),
 				new Slider("Höhe", 0.15, 0.8, 0.05, () -> Config.haloHeight, v -> Config.haloHeight = (float) v, v -> String.format("%.2f", v)),
-				new Slider("Dreh-Tempo", 0, 3, 0.1, () -> Config.haloSpin, v -> Config.haloSpin = (float) v, v -> String.format("%.1fx", v))
+				new Slider("Schimmer-Tempo", 0, 3, 0.1, () -> Config.haloSpin, v -> Config.haloSpin = (float) v, v -> String.format("%.1fx", v))
 		)));
 		c.add(new Category("Partikel", List.of(
 				new Toggle("Partikel aktiv", () -> Config.particles, v -> Config.particles = v),
@@ -160,7 +160,7 @@ public class BlutgoldScreen extends Screen {
 
 	private void buildInfo(List<Category> c) {
 		c.add(new Category("Über", List.of(
-				new Header("Blutgold PvP v1.3.0"),
+				new Header("Blutgold PvP v1.3.1"),
 				new Label("Gemacht von Ibrahim (GarbageIsSpecs)."),
 				new Label("Reine Anzeige-Hilfen und Cosmetics – keine Cheats."),
 				new Label("Cosmetics sieht nur, wer die Mod selbst hat."),
@@ -252,7 +252,7 @@ public class BlutgoldScreen extends Screen {
 			}
 			g.text(font, categories.get(i).name, px + 12, cy + 7, sel ? t.text() : t.muted(), false);
 		}
-		String ver = "v1.3.0  ·  ESC";
+		String ver = "v1.3.1  ·  ESC";
 		g.text(font, ver, px + 12, py + ph - 14, Theme.withAlpha(t.muted(), 0.6f), false);
 
 		// Inhalt
