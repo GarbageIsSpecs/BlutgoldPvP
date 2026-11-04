@@ -379,13 +379,13 @@ public class ArmeeScreen extends Screen {
 
 		// Armor-Stand mit der Team-Ausrüstung
 		int size = Math.min(52, (bh - 20) / 2);
-		int ecx = bx + bw / 2, ecy = by + bh / 2 + 6;
+		int ecx = bx + bw / 2, ecy = by + (12 + bh - 16) / 2;
 		if (stand != null && minecraft != null && minecraft.level != null) {
 			int dye = cfg.dyeLeather ? BattleConfig.COLOR_DYE[Math.floorMod(t.color, BattleConfig.COLOR_DYE.length)] : -1;
 			for (int i = 0; i < 6; i++) {
 				stand.setItemSlot(Kits.SLOTS[i], Kits.build(minecraft.level.registryAccess(), t.kit[i], i, dye, 0));
 			}
-			InventoryScreen.extractEntityInInventoryFollowsMouse(g, bx + 4, by + 14, bx + bw - 4, by + bh - 4, size, 0.0625F,
+			InventoryScreen.extractEntityInInventoryFollowsMouse(g, bx + 4, by + 12, bx + bw - 4, by + bh - 16, size, 0.0625F,
 					ecx + (mx - ecx) * 0.35F, ecy - 30, stand);
 		}
 
@@ -400,7 +400,10 @@ public class ArmeeScreen extends Screen {
 			if (i == slot) g.outline(z[0], z[1], z[2], z[3], ACCENT);
 			else if (hov) g.outline(z[0], z[1], z[2], z[3], 0x88FFFFFF);
 			final int idx = i;
-			buttons.add(new Button(z[0], z[1], z[2], z[3], () -> slot = idx));
+			buttons.add(new Button(z[0], z[1], z[2], z[3], () -> {
+				slot = idx;
+				eqScroll = 0;
+			}));
 		}
 		String hint = hoverSlot >= 0 ? BattleConfig.SLOT_NAMES[hoverSlot] : "Teil anklicken";
 		g.centeredText(font, hint, ecx, by + bh - 12, hoverSlot >= 0 ? TEXT : MUTED);
@@ -414,91 +417,113 @@ public class ArmeeScreen extends Screen {
 			smallButton(g, mx, my, bxx, byy, pbw, presets[i][0], MUTED, () -> applyPreset(t, tier));
 		}
 
-		// Auswahl rechts
+		// Auswahl rechts (scrollbar, falls das Fenster klein ist)
 		int rx = bx + bw + 8, rw = x + cw() - rx;
-		int y = top;
-		g.text(font, BattleConfig.SLOT_NAMES[slot].toUpperCase(), rx, y, ACCENT, false);
-		g.text(font, SLOT_HINT[slot], rx + font.width(BattleConfig.SLOT_NAMES[slot].toUpperCase()) + 6, y, MUTED, false);
-		y += 12;
+		int viewTop = top + 12, viewBottom = bottom;
+		String head = BattleConfig.SLOT_NAMES[slot].toUpperCase();
+		g.text(font, head, rx, top, ACCENT, false);
+		g.text(font, trim(SLOT_HINT[slot], rw - font.width(head) - 6), rx + font.width(head) + 6, top, MUTED, false);
 		BattleConfig.Piece piece = t.kit[slot];
 		List<String> options = new ArrayList<>();
 		for (String id : Kits.OPTIONS.get(slot)) if (id.isEmpty() || Kits.item(id) != Items.AIR) options.add(id);
-		Component hoverName = null;
-		int cols = Math.max(1, rw / 20);
+		int cell = rw >= 200 ? 20 : 18;
+		int cols = Math.max(1, rw / cell);
+		hoverName = null;
+		int y = viewTop - (int) eqScroll;
+
+		y = section(g, mx, my, rx, y, rw, null, viewTop, viewBottom);
 		for (int i = 0; i < options.size(); i++) {
-			int cx = rx + (i % cols) * 20, cy = y + (i / cols) * 20;
 			String id = options.get(i);
-			boolean sel = id.equals(piece.item);
-			boolean hov = in(mx, my, cx, cy, 19, 19);
-			g.fill(cx, cy, cx + 19, cy + 19, sel ? ACCENT_DARK : hov ? PANEL_LIGHT : PANEL);
-			if (sel) g.outline(cx, cy, 19, 19, ACCENT);
 			ItemStack icon = id.isEmpty() ? new ItemStack(Items.BARRIER) : preview(id, piece, t);
-			g.item(icon, cx + 1, cy + 1);
-			if (hov) hoverName = id.isEmpty() ? Component.literal("Nichts") : icon.getHoverName();
-			buttons.add(new Button(cx, cy, 19, 19, () -> piece.item = id));
+			cellAt(g, mx, my, rx + (i % cols) * cell, y + (i / cols) * cell, cell, icon, id.equals(piece.item),
+					id.isEmpty() ? Component.literal("Nichts") : icon.getHoverName(), () -> piece.item = id, viewTop, viewBottom);
 		}
-		y += ((options.size() + cols - 1) / cols) * 20 + 6;
+		y += ((options.size() + cols - 1) / cols) * cell + 5;
 
 		if (slot < 4) {
 			boolean trimmable = !piece.item.isEmpty() && !piece.item.contains("elytra");
-			g.text(font, "Trim-Muster", rx, y, trimmable ? TEXT : MUTED, false);
-			y += 11;
+			y = section(g, mx, my, rx, y, rw, trimmable ? "Trim-Muster" : "Trim-Muster (nicht möglich)", viewTop, viewBottom);
 			int n = Kits.PATTERNS.length + 1;
 			for (int i = 0; i < n; i++) {
-				int cx = rx + (i % cols) * 20, cy = y + (i / cols) * 20;
-				String p = i == 0 ? "" : Kits.PATTERNS[i - 1];
-				boolean sel = p.equals(piece.pattern);
-				boolean hov = in(mx, my, cx, cy, 19, 19);
-				g.fill(cx, cy, cx + 19, cy + 19, sel ? ACCENT_DARK : hov ? PANEL_LIGHT : PANEL);
-				if (sel) g.outline(cx, cy, 19, 19, ACCENT);
-				g.item(i == 0 ? new ItemStack(Items.BARRIER) : Kits.patternIcon(p), cx + 1, cy + 1);
-				if (hov) hoverName = Component.literal(i == 0 ? "Kein Trim" : "Muster: " + p);
-				buttons.add(new Button(cx, cy, 19, 19, () -> {
-					piece.pattern = p;
-					if (!p.isEmpty() && piece.material.isEmpty()) piece.material = "gold";
-				}));
+				String pat = i == 0 ? "" : Kits.PATTERNS[i - 1];
+				cellAt(g, mx, my, rx + (i % cols) * cell, y + (i / cols) * cell, cell,
+						i == 0 ? new ItemStack(Items.BARRIER) : Kits.patternIcon(pat), pat.equals(piece.pattern),
+						Component.literal(i == 0 ? "Kein Trim" : "Muster: " + pat), () -> {
+							piece.pattern = pat;
+							if (!pat.isEmpty() && piece.material.isEmpty()) piece.material = "gold";
+						}, viewTop, viewBottom);
 			}
-			y += ((n + cols - 1) / cols) * 20 + 4;
-			g.text(font, "Trim-Material", rx, y, trimmable ? TEXT : MUTED, false);
-			y += 11;
+			y += ((n + cols - 1) / cols) * cell + 4;
+			y = section(g, mx, my, rx, y, rw, "Trim-Material", viewTop, viewBottom);
 			for (int i = 0; i < Kits.MATERIALS.length; i++) {
-				int cx = rx + (i % cols) * 20, cy = y + (i / cols) * 20;
 				String m = Kits.MATERIALS[i];
-				boolean sel = m.equals(piece.material);
-				boolean hov = in(mx, my, cx, cy, 19, 19);
-				g.fill(cx, cy, cx + 19, cy + 19, sel ? ACCENT_DARK : hov ? PANEL_LIGHT : PANEL);
-				if (sel) g.outline(cx, cy, 19, 19, ACCENT);
-				g.item(Kits.materialIcon(m), cx + 1, cy + 1);
-				if (hov) hoverName = Component.literal("Material: " + m);
-				buttons.add(new Button(cx, cy, 19, 19, () -> {
-					piece.material = m;
-					if (piece.pattern.isEmpty()) piece.pattern = "sentry";
-				}));
+				cellAt(g, mx, my, rx + (i % cols) * cell, y + (i / cols) * cell, cell, Kits.materialIcon(m), m.equals(piece.material),
+						Component.literal("Material: " + m), () -> {
+							piece.material = m;
+							if (piece.pattern.isEmpty()) piece.pattern = "sentry";
+						}, viewTop, viewBottom);
 			}
-			y += ((Kits.MATERIALS.length + cols - 1) / cols) * 20 + 4;
+			y += ((Kits.MATERIALS.length + cols - 1) / cols) * cell + 4;
 		} else if (slot == 4) {
-			g.text(font, "Bogenschützen bekommen automatisch", rx, y, MUTED, false);
-			g.text(font, "Bogen oder Armbrust (Tab Teams).", rx, y + 10, MUTED, false);
-			y += 26;
+			for (net.minecraft.util.FormattedCharSequence line : font.split(Component.literal("Bogenschützen bekommen automatisch Bogen oder Armbrust (Tab Teams)."), rw)) {
+				if (y >= viewTop && y + 9 <= viewBottom) g.text(font, line, rx, y, MUTED, false);
+				y += 10;
+			}
+			y += 4;
 		}
 		// Glitzern
-		boolean hovG = in(mx, my, rx, y, rw, 16);
-		g.fill(rx, y, rx + rw, y + 16, hovG ? PANEL_LIGHT : PANEL);
-		g.text(font, "Verzaubert (Glitzern)", rx + 6, y + 4, TEXT, false);
-		drawSwitch(g, rx + rw - 28, y + 3, piece.glint);
-		buttons.add(new Button(rx, y, rw, 16, () -> piece.glint = !piece.glint));
+		if (y >= viewTop && y + 16 <= viewBottom) {
+			boolean hovG = in(mx, my, rx, y, rw, 16);
+			g.fill(rx, y, rx + rw, y + 16, hovG ? PANEL_LIGHT : PANEL);
+			g.text(font, "Verzaubert (Glitzern)", rx + 6, y + 4, TEXT, false);
+			drawSwitch(g, rx + rw - 28, y + 3, piece.glint);
+			buttons.add(new Button(rx, y, rw, 16, () -> piece.glint = !piece.glint));
+		}
 		y += 20;
-		smallButton(g, mx, my, rx, y, rw, "Diese Ausrüstung für alle Teams übernehmen", MUTED, () -> {
-			for (BattleConfig.Team other : cfg.teams) {
-				if (other == t) continue;
-				for (int s = 0; s < 6; s++) other.kit[s] = BattleConfig.Piece.decode(t.kit[s].encode());
-			}
-		});
+		if (y >= viewTop && y + 17 <= viewBottom) {
+			smallButton(g, mx, my, rx, y, rw, "Für alle Teams übernehmen", MUTED, () -> {
+				for (BattleConfig.Team other : cfg.teams) {
+					if (other == t) continue;
+					for (int s = 0; s < 6; s++) other.kit[s] = BattleConfig.Piece.decode(t.kit[s].encode());
+				}
+			});
+		}
+		y += 19;
+		int contentH = y + (int) eqScroll - viewTop;
+		eqMax = Math.max(0, contentH - (viewBottom - viewTop));
+		eqScroll = Math.max(0, Math.min(eqScroll, eqMax));
+		if (eqMax > 0) {
+			int trackH = viewBottom - viewTop;
+			int barH = Math.max(14, trackH * trackH / (trackH + eqMax));
+			int barY = viewTop + (int) ((trackH - barH) * (eqScroll / eqMax));
+			g.fill(px + pw - 5, barY, px + pw - 3, barY + barH, 0xAAE8B84A);
+		}
 
 		if (hoverName != null) g.setTooltipForNextFrame(hoverName, mx, my);
 	}
 
 	/** Zonen am Armor-Stand: Kopf, Brust, Beine, Füße, rechte Hand (Waffe), linke Hand. */
+	private double eqScroll = 0, eqMax = 0;
+	private Component hoverName;
+
+	private int section(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, String title, int top, int bottom) {
+		if (title == null) return y;
+		if (y >= top && y + 9 <= bottom) g.text(font, title, x, y, title.contains("nicht") ? MUTED : TEXT, false);
+		return y + 11;
+	}
+
+	private void cellAt(GuiGraphicsExtractor g, int mx, int my, int x, int y, int cell, ItemStack icon, boolean sel, Component name,
+			Runnable action, int top, int bottom) {
+		if (y < top || y + cell - 1 > bottom) return;
+		int s = cell - 1;
+		boolean hov = in(mx, my, x, y, s, s);
+		g.fill(x, y, x + s, y + s, sel ? ACCENT_DARK : hov ? PANEL_LIGHT : PANEL);
+		if (sel) g.outline(x, y, s, s, ACCENT);
+		g.item(icon, x + (s - 16) / 2, y + (s - 16) / 2);
+		if (hov) hoverName = name;
+		buttons.add(new Button(x, y, s, s, action));
+	}
+
 	private static int[][] zones(int cx, int top, int h, int size) {
 		int bodyW = (int) (size * 0.62);
 		int head = (int) (h * 0.24), chest = (int) (h * 0.32), legs = (int) (h * 0.26);
@@ -647,6 +672,10 @@ public class ArmeeScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double mx, double my, double sx, double sy) {
+		if (tab == 1) {
+			eqScroll = Math.max(0, Math.min(eqMax, eqScroll - sy * 16));
+			return true;
+		}
 		scroll -= sy * 16;
 		if (scroll < 0) scroll = 0;
 		return true;

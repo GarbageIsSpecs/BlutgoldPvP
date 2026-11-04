@@ -42,7 +42,11 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 				return new int[] {pl.getBlockX(), pl.getBlockY(), pl.getBlockZ()};
 			});
 			sp.getServer().runCommand("tp @a " + p[0] + " " + (p[1] + 16) + " " + (p[2] + 34) + " 180 24");
-			sp.getServer().runCommand("effect give @a levitation 1 255 true");
+			sp.getServer().runOnServer(server -> {
+				ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
+				pl.getAbilities().flying = true;
+				pl.onUpdateAbilities();
+			});
 			sp.getConnection().waitForChunksRender();
 
 			String[] names = {"menu_teams", "menu_ausruestung", "menu_ablauf", "menu_arena", "menu_extras"};
@@ -82,6 +86,22 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			ctx.takeScreenshot("ende");
 			ctx.runOnClient(mc -> {
 				StringBuilder sb = new StringBuilder("BOTARMEE-RESULT state=" + ClientState.state);
+				for (ClientState.TeamStatus t : ClientState.teams) sb.append(" | ").append(t.name()).append(' ').append(t.alive()).append('/').append(t.start());
+				System.out.println(sb);
+			});
+
+			// 2. Schlacht: das schwächere Team (Wikinger) soll "super knapp" gewinnen
+			ctx.runOnClient(mc -> {
+				BattleConfig c = ClientState.config();
+				c.winner = 1;
+				c.closeness = 85;
+				ClientState.send("start");
+			});
+			ctx.waitTicks(80);
+			ctx.waitFor(mc -> ClientState.state.equals("OVER"), 3000);
+			ctx.takeScreenshot("ende_rigged");
+			ctx.runOnClient(mc -> {
+				StringBuilder sb = new StringBuilder("BOTARMEE-RESULT2 state=" + ClientState.state);
 				for (ClientState.TeamStatus t : ClientState.teams) sb.append(" | ").append(t.name()).append(' ').append(t.alive()).append('/').append(t.start());
 				System.out.println(sb);
 			});

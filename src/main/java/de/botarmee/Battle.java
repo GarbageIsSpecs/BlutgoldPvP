@@ -417,21 +417,31 @@ public final class Battle {
 		if (w.startCount == 0) return;
 		double ws = w.alive() / (double) w.startCount;
 		double best = 0;
-		int enemiesAlive = 0;
+		int enemiesAlive = 0, totalStart = w.startCount, totalAlive = w.alive();
 		for (Side s : sides) {
 			if (s == w || s.startCount == 0) continue;
 			best = Math.max(best, s.alive() / (double) s.startCount);
 			enemiesAlive += s.alive();
+			totalStart += s.startCount;
+			totalAlive += s.alive();
 		}
-		double margin = 0.22 * (1 - cfg.closeness / 100.0) + 0.02;
-		boolean endgame = w.alive() <= 3 && enemiesAlive > 0;
-		if (ws < best + margin || endgame) {
-			double push = endgame ? 1.25 : 1.08;
-			w.damageMult = Math.min(w.baseDamage * 3.5, w.damageMult * push);
-			w.takenMult = Math.max(0.25, w.takenMult * (endgame ? 0.8 : 0.93));
-		} else {
-			w.damageMult = Math.max(w.baseDamage, w.damageMult * 0.97);
-			w.takenMult = Math.min(1.0, w.takenMult * 1.02);
+		// Fortschritt der Schlacht: 0 = alle leben, 1 = fast alle tot.
+		double progress = 1 - totalAlive / (double) Math.max(1, totalStart);
+		// Wie weit der Sieger vorne liegen soll – am Anfang gar nicht, zum Ende hin immer mehr.
+		double lead = (0.30 * (1 - cfg.closeness / 100.0) + 0.04) * progress;
+		double target = best + lead;
+		boolean endgame = w.alive() <= 3 && enemiesAlive >= w.alive();
+		if (endgame) {
+			w.damageMult = Math.min(w.baseDamage * 3.0, w.damageMult * 1.25);
+			w.takenMult = Math.max(0.3, w.takenMult * 0.8);
+		} else if (ws < target - 0.03) {
+			w.damageMult = Math.min(w.baseDamage * 2.2, w.damageMult * 1.05);
+			w.takenMult = Math.max(0.45, w.takenMult * 0.96);
+		} else if (ws > target + 0.06) {
+			// zu weit vorne: wieder normal (bei "knapp" sogar etwas schwächer), damit es spannend bleibt
+			double floor = w.baseDamage * (1 - 0.35 * cfg.closeness / 100.0);
+			w.damageMult = Math.max(floor, w.damageMult * 0.95);
+			w.takenMult = Math.min(1 + 0.3 * cfg.closeness / 100.0, w.takenMult * 1.04);
 		}
 	}
 
