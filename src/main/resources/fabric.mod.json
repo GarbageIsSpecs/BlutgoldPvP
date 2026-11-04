@@ -1,0 +1,20 @@
+{
+	"schemaVersion": 1,
+	"id": "botarmee",
+	"version": "${version}",
+	"name": "Bot-Armee",
+	"description": "Spawnt Armeen aus Fake-Spielern fuer Civilization-Videos. Menue mit Taste B.",
+	"authors": ["Ibrahim"],
+	"license": "CC0-1.0",
+	"environment": "*",
+	"entrypoints": {
+		"main": ["de.botarmee.BotArmee"],
+		"client": ["de.botarmee.BotArmeeClient"]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
