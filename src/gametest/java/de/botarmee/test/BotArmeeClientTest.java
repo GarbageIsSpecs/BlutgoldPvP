@@ -12,10 +12,16 @@ import de.botarmee.ClientState;
 
 /** Automatischer Test: Arena bauen, Menü-Screenshots, Schlacht starten und Screenshots vom Kampf. */
 public class BotArmeeClientTest implements FabricClientGameTest {
+	private static void log(String s) {
+		System.out.println("BOTARMEE-TEST " + s);
+	}
+
 	@Override
 	public void runTest(ClientGameTestContext ctx) {
 		try (TestSingleplayerContext sp = ctx.worldBuilder().create()) {
+			log("welt geladen");
 			sp.getConnection().waitForChunksRender();
+			log("chunks gerendert");
 			sp.getServer().runCommand("gamemode creative @a");
 			sp.getServer().runCommand("time set noon");
 			sp.getServer().runCommand("weather clear");
@@ -45,27 +51,34 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 				ctx.runOnClient(mc -> ArmeeScreen.select(tab, 0, 1));
 				ctx.setScreen(ArmeeScreen::new);
 				ctx.waitTicks(5);
-				ctx.takeScreenshot(names[t]);
+				log("shot");
+			ctx.takeScreenshot(names[t]);
 			}
 			ctx.runOnClient(mc -> ArmeeScreen.select(1, 1, 4));
 			ctx.setScreen(ArmeeScreen::new);
 			ctx.waitTicks(5);
+			log("shot");
 			ctx.takeScreenshot("menu_ausruestung_waffe");
 			ctx.setScreen(() -> null);
 
 			ctx.runOnClient(mc -> ClientState.send("setup"));
 			ctx.waitTicks(40);
+			log("shot");
 			ctx.takeScreenshot("aufgestellt");
 			ctx.runOnClient(mc -> ClientState.send("start"));
 			ctx.waitTicks(70);
+			log("shot");
 			ctx.takeScreenshot("kampf_start");
 			ctx.waitTicks(160);
+			log("shot");
 			ctx.takeScreenshot("kampf_mitte");
 			sp.getServer().runCommand("tp @a " + p[0] + " " + (p[1] + 4) + " " + (p[2] + 12) + " 180 10");
 			ctx.waitTicks(60);
+			log("shot");
 			ctx.takeScreenshot("kampf_nah");
-			ctx.waitFor(mc -> ClientState.state.equals("OVER"), 2400);
+			ctx.waitFor(mc -> ClientState.state.equals("OVER"), 1800);
 			ctx.waitTicks(20);
+			log("shot");
 			ctx.takeScreenshot("ende");
 			ctx.runOnClient(mc -> {
 				StringBuilder sb = new StringBuilder("BOTARMEE-RESULT state=" + ClientState.state);
