@@ -33,9 +33,9 @@ public class BattleConfig {
 		public String material = "";
 		public boolean glint = false;
 
-		Piece() {}
+		public Piece() {}
 
-		Piece(String item) {
+		public Piece(String item) {
 			this.item = item;
 		}
 

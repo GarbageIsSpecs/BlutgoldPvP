@@ -50,6 +50,7 @@ jobs:
           tail -400 /tmp/test.log > test-tail.log
           grep -E "BOTARMEE|Exception|ERROR|Caused by|at de\.botarmee" /tmp/test.log | head -300 > errors.log || true
           find $GITHUB_WORKSPACE -name "*.png" -path "*screenshots*" -exec cp {} /tmp/s/ \;
+          cp $GITHUB_WORKSPACE/build/libs/botarmee-*[0-9].jar /tmp/s/ 2>/dev/null || true
           L=$(find $GITHUB_WORKSPACE/build -name latest.log | head -1); [ -n "$L" ] && cp "$L" /tmp/s/latest.log
           git add -A && git -c user.name=ci -c user.email=ci@x commit -qm shots
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" probe-shots
