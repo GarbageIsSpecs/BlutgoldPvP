@@ -80,6 +80,7 @@ public class ArmeeScreen extends Screen {
 			stand = new ArmorStand(minecraft.level, 0, 0, 0);
 			stand.setShowArms(true);
 			stand.setNoBasePlate(true);
+			stand.setId(-424242); // nur zur Vorschau, braucht trotzdem eine ID
 		}
 	}
 
