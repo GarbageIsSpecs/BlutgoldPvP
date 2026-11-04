@@ -46,6 +46,13 @@ public class ArmeeScreen extends Screen {
 	private ArmorStand stand;
 	private final List<Button> buttons = new ArrayList<>();
 
+	/** Öffnet beim nächsten Mal einen bestimmten Tab (auch für den automatischen Test). */
+	public static void select(int tabIndex, int teamIndex, int slotIndex) {
+		tab = tabIndex;
+		team = teamIndex;
+		slot = slotIndex;
+	}
+
 	public ArmeeScreen() {
 		super(Component.literal("Bot-Armee"));
 	}

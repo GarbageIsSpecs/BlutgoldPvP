@@ -38,3 +38,17 @@ jobs:
         with:
           name: BotArmee-Mod
           path: build/libs/
+      - name: client test (screenshots)
+        if: ${{ hashFiles('test.flag') != '' }}
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q xvfb mesa-utils libgl1-mesa-dri > /dev/null
+          xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClientGameTest --no-configuration-cache > /tmp/test.log 2>&1 || echo "TEST FAILED"
+          mkdir -p /tmp/s && cd /tmp/s && git init -q && git checkout -q -b probe-shots
+          tail -400 /tmp/test.log > test-tail.log
+          grep -E "BOTARMEE|Exception|ERROR|Caused by|at de\.botarmee" /tmp/test.log | head -300 > errors.log || true
+          find $GITHUB_WORKSPACE -name "*.png" -path "*screenshots*" -exec cp {} /tmp/s/ \;
+          L=$(find $GITHUB_WORKSPACE/build -name latest.log | head -1); [ -n "$L" ] && cp "$L" /tmp/s/latest.log
+          git add -A && git -c user.name=ci -c user.email=ci@x commit -qm shots
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" probe-shots

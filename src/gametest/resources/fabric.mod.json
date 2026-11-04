@@ -1,0 +1,11 @@
+{
+	"schemaVersion": 1,
+	"id": "botarmee-test",
+	"version": "1.0.0",
+	"name": "Bot-Armee Test",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-client-gametest": ["de.botarmee.test.BotArmeeClientTest"]
+	},
+	"depends": { "botarmee": "*" }
+}

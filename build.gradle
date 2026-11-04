@@ -22,6 +22,16 @@ loom {
 	}
 }
 
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "botarmee-test"
+		eula = true
+		enableGameTests = false
+		enableClientGameTests = true
+	}
+}
+
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
