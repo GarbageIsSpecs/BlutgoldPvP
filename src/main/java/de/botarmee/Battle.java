@@ -350,7 +350,7 @@ public final class Battle {
 			case FIGHT -> {
 				tick++;
 				for (Side s : sides) advancePhase(s);
-				if (tick % 20 == 0) rig();
+				if (tick % 10 == 0) rig();
 				checkVictory();
 			}
 			case OVER -> overTicks++;
@@ -431,17 +431,19 @@ public final class Battle {
 		double lead = (0.30 * (1 - cfg.closeness / 100.0) + 0.04) * progress;
 		double target = best + lead;
 		boolean endgame = w.alive() <= 3 && enemiesAlive >= w.alive();
+		double deficit = target - ws;
 		if (endgame) {
-			w.damageMult = Math.min(w.baseDamage * 3.0, w.damageMult * 1.25);
-			w.takenMult = Math.max(0.3, w.takenMult * 0.8);
-		} else if (ws < target - 0.03) {
-			w.damageMult = Math.min(w.baseDamage * 2.2, w.damageMult * 1.05);
-			w.takenMult = Math.max(0.45, w.takenMult * 0.96);
-		} else if (ws > target + 0.06) {
+			w.damageMult = Math.min(w.baseDamage * 5.0, w.damageMult * 1.3);
+			w.takenMult = Math.max(0.15, w.takenMult * 0.75);
+		} else if (deficit > 0.01) {
+			// je weiter hinten, desto stärker nachhelfen
+			w.damageMult = Math.min(w.baseDamage * 4.0, w.damageMult * (1 + Math.min(0.3, deficit * 2.0)));
+			w.takenMult = Math.max(0.2, w.takenMult * (1 - Math.min(0.22, deficit * 1.6)));
+		} else if (deficit < -0.06) {
 			// zu weit vorne: wieder normal (bei "knapp" sogar etwas schwächer), damit es spannend bleibt
 			double floor = w.baseDamage * (1 - 0.35 * cfg.closeness / 100.0);
-			w.damageMult = Math.max(floor, w.damageMult * 0.95);
-			w.takenMult = Math.min(1 + 0.3 * cfg.closeness / 100.0, w.takenMult * 1.04);
+			w.damageMult = Math.max(floor, w.damageMult * 0.93);
+			w.takenMult = Math.min(1 + 0.3 * cfg.closeness / 100.0, w.takenMult * 1.05);
 		}
 	}
 
