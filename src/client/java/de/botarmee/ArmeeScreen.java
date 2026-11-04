@@ -494,7 +494,7 @@ public class ArmeeScreen extends Screen {
 		eqScroll = Math.max(0, Math.min(eqScroll, eqMax));
 		if (eqMax > 0) {
 			int trackH = viewBottom - viewTop;
-			int barH = Math.max(14, trackH * trackH / (trackH + eqMax));
+			int barH = (int) Math.max(14, trackH * trackH / (trackH + eqMax));
 			int barY = viewTop + (int) ((trackH - barH) * (eqScroll / eqMax));
 			g.fill(px + pw - 5, barY, px + pw - 3, barY + barH, 0xAAE8B84A);
 		}
