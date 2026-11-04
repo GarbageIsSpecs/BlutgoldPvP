@@ -1,6 +1,9 @@
 name: build
 on: [push, workflow_dispatch]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -15,16 +18,20 @@ jobs:
         if: ${{ hashFiles('probe.flag') != '' }}
         continue-on-error: true
         run: |
-          ./gradlew genSources --no-configuration-cache || true
-          mkdir -p probe
-          find ~/.gradle /home/runner/work -name "*sources*.jar" -path "*minecraft*" 2>/dev/null | tee probe/found.txt
-          for j in $(cat probe/found.txt); do cp "$j" probe/ ; done
-          find ~/.gradle -name "fabric-*.jar" -path "*net.fabricmc.fabric-api*" | head -200 | xargs -I{} cp {} probe/ 2>/dev/null || true
-      - uses: actions/upload-artifact@v7
-        if: ${{ hashFiles('probe.flag') != '' }}
-        with:
-          name: probe
-          path: probe/
+          ./gradlew genSources --no-configuration-cache
+          mkdir -p /tmp/p/mc /tmp/p/fabric
+          SRC=$(find ~/.gradle .gradle -name "*sources*.jar" -path "*minecraft*" 2>/dev/null | head -1)
+          echo "$SRC"
+          (cd /tmp/p/mc && unzip -q -o "$SRC" 'net/minecraft/*' 'com/mojang/*')
+          for j in $(find ~/.gradle -name "fabric-*.jar" -path "*fabric-api*" ! -name "*sources*"); do
+            for c in $(unzip -Z1 "$j" | grep -E '^net/fabricmc/fabric/api/.*\.class$' | grep -v '\$'); do
+              echo "== $c" >> /tmp/p/fabric/api.txt
+              javap -cp "$j" "${c%.class}" >> /tmp/p/fabric/api.txt 2>/dev/null || true
+            done
+          done
+          cd /tmp/p && git init -q && git checkout -q -b probe-src && git add -A
+          git -c user.name=ci -c user.email=ci@x commit -qm probe
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" probe-src
       - name: build
         run: ./gradlew build --stacktrace
       - uses: actions/upload-artifact@v7
