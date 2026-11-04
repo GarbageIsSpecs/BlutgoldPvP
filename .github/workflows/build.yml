@@ -20,9 +20,9 @@ jobs:
         run: |
           ./gradlew genSources --no-configuration-cache
           mkdir -p /tmp/p/mc /tmp/p/fabric
-          SRC=$(find ~/.gradle .gradle -name "*sources*.jar" -path "*minecraft*" 2>/dev/null | head -1)
-          echo "$SRC"
-          (cd /tmp/p/mc && unzip -q -o "$SRC" 'net/minecraft/*' 'com/mojang/*')
+          for SRC in $(find $HOME/.gradle $PWD/.gradle -name "*sources*.jar" -path "*minecraft*" 2>/dev/null); do
+            echo "$SRC"; (cd /tmp/p/mc && unzip -q -o "$SRC" 'net/minecraft/*' 'com/mojang/*' || true)
+          done
           for j in $(find ~/.gradle -name "fabric-*.jar" -path "*fabric-api*" ! -name "*sources*"); do
             for c in $(unzip -Z1 "$j" | grep -E '^net/fabricmc/fabric/api/.*\.class$' | grep -v '\$'); do
               echo "== $c" >> /tmp/p/fabric/api.txt
