@@ -105,6 +105,48 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 				for (ClientState.TeamStatus t : ClientState.teams) sb.append(" | ").append(t.name()).append(' ').append(t.alive()).append('/').append(t.start());
 				System.out.println(sb);
 			});
+
+			// 3. Kolosseum mit 4 Teams
+			ctx.runOnClient(mc -> {
+				BattleConfig c = ClientState.config();
+				ClientState.send("clear");
+				c.winner = -1;
+				c.arena = 4;
+				c.arenaSize = 0;
+				c.teams.get(0).count = 20;
+				c.teams.get(1).count = 20;
+				BattleConfig.Team t3 = new BattleConfig.Team("Mongolen", 2);
+				t3.count = 20;
+				t3.archers = 50;
+				t3.sequence.add(new BattleConfig.Phase(BattleConfig.ACT_ATTACK, 0));
+				BattleConfig.Team t4 = new BattleConfig.Team("Samurai", 3);
+				t4.count = 20;
+				t4.kit[1] = new BattleConfig.Piece();
+				t4.kit[1].item = "minecraft:netherite_chestplate";
+				t4.kit[4].item = "minecraft:diamond_sword";
+				t4.sequence.add(new BattleConfig.Phase(BattleConfig.ACT_FLANK, 0));
+				c.teams.add(t3);
+				c.teams.add(t4);
+			});
+			sp.getServer().runCommand("tp @a " + (p[0] + 300) + " " + (p[1] + 1) + " " + p[2]);
+			sp.getConnection().waitForChunksRender();
+			ctx.runOnClient(mc -> ClientState.send("arena"));
+			ctx.waitTicks(140);
+			ctx.runOnClient(mc -> ClientState.send("setup"));
+			ctx.waitTicks(30);
+			sp.getServer().runCommand("tp @a " + (p[0] + 300) + " " + (p[1] + 22) + " " + (p[2] + 38) + " 180 32");
+			ctx.waitTicks(30);
+			log("shot");
+			ctx.takeScreenshot("kolosseum_aufgestellt");
+			ctx.runOnClient(mc -> ClientState.send("start"));
+			ctx.waitTicks(200);
+			ctx.takeScreenshot("kolosseum_kampf");
+			ctx.waitFor(mc -> ClientState.state.equals("OVER"), 3000);
+			ctx.runOnClient(mc -> {
+				StringBuilder sb = new StringBuilder("BOTARMEE-RESULT3 state=" + ClientState.state);
+				for (ClientState.TeamStatus t : ClientState.teams) sb.append(" | ").append(t.name()).append(' ').append(t.alive()).append('/').append(t.start());
+				System.out.println(sb);
+			});
 		}
 	}
 }
