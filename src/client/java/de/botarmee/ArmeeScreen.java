@@ -1037,7 +1037,10 @@ public class ArmeeScreen extends Screen {
 			return thumbH() + 36;
 		}
 
-		@Override int height() { return 3 * cardH() + 2 * 4; }
+		@Override int height() {
+			int rows = (ArenaBuilder.NAMES.length + 1) / 2;
+			return rows * cardH() + (rows - 1) * 4;
+		}
 
 		@Override
 		void draw(GuiGraphicsExtractor g, int x, int y, int w, boolean hover, int mx, int my) {
@@ -1082,7 +1085,8 @@ public class ArmeeScreen extends Screen {
 				case 2 -> Items.SAND;
 				case 3 -> Items.SNOW_BLOCK;
 				case 4 -> Items.CHISELED_STONE_BRICKS;
-				default -> Items.NETHERRACK;
+				case 5 -> Items.NETHERRACK;
+				default -> Items.BELL;
 			};
 		}
 	}

@@ -427,7 +427,9 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 				return new int[] {pl.getBlockX(), pl.getBlockY(), pl.getBlockZ()};
 			});
 			boolean previews = System.getenv("BOTARMEE_PREVIEW_ONLY") != null;
-			for (int a = 0; a < (previews ? 6 : 0); a++) {
+			String which = previews ? System.getenv("BOTARMEE_PREVIEW_ONLY") : "";
+			for (int a = 0; a < (previews ? de.botarmee.ArenaBuilder.NAMES.length : 0); a++) {
+				if (!which.equals("1") && !which.contains(String.valueOf(a))) continue; // "1" = alle, sonst Liste z.B. "6"
 				final int arena = a;
 				int ax = home[0] - 2000 - a * 400, az = home[2];
 				sp.getServer().runCommand("tp @a " + ax + " " + home[1] + " " + az + " 0 0");
@@ -457,6 +459,20 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 				ctx.waitTicks(3);
 				log("shot");
 				ctx.takeScreenshot("preview_arena_" + arena);
+				if (arena == 6) {
+					// Nahaufnahmen vom Dorf
+					String[][] views = {
+							{String.valueOf(ax + 24), String.valueOf(home[1] + 4), String.valueOf(az + 2), "60", "10", "dorf_strasse"},
+							{String.valueOf(ax), String.valueOf(home[1] + 6), String.valueOf(az + 5), "180", "15", "dorf_kirche"},
+							{String.valueOf(ax + 34), String.valueOf(home[1] + 5), String.valueOf(az - 2), "-160", "18", "dorf_haus"},
+							{String.valueOf(ax + 34), String.valueOf(home[1] + 12), String.valueOf(az - 30), "20", "35", "dorf_garten"}};
+					for (String[] v : views) {
+						sp.getServer().runCommand("tp @a " + v[0] + " " + v[1] + " " + v[2] + " " + v[3] + " " + v[4]);
+						sp.getConnection().waitForChunksRender();
+						ctx.waitTicks(10);
+						ctx.takeScreenshot(v[5]);
+					}
+				}
 				ctx.runOnClient(mc -> {
 					if (mc.gui.hud.isHidden()) mc.gui.hud.toggle();
 					ClientState.config().names = true;

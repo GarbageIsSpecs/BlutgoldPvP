@@ -23,14 +23,15 @@ import net.minecraft.world.phys.Vec3;
 public final class ArenaBuilder {
 	private ArenaBuilder() {}
 
-	public static final String[] NAMES = {"Grasland", "Zwei Burgen", "Wüstenschlucht", "Schneefeld", "Kolosseum", "Nether-Ebene"};
+	public static final String[] NAMES = {"Grasland", "Zwei Burgen", "Wüstenschlucht", "Schneefeld", "Kolosseum", "Nether-Ebene", "Dorf"};
 	public static final String[] DESCRIPTIONS = {
 			"Weite Wiese mit Bäumen und Felsen.",
 			"Zwei Steinburgen mit Türmen.",
 			"Sandtal zwischen hohen Schluchtwänden.",
 			"Schnee, Tannen und gefrorene Teiche.",
 			"Runde Arena – ideal für 3–4 Teams.",
-			"Netherrack, Basalt und Lavaseen."
+			"Netherrack, Basalt und Lavaseen.",
+			"Fachwerkhäuser, Marktplatz, Kirche."
 	};
 	public static final String[] SIZES = {"Klein", "Mittel", "Groß"};
 	private static final int[][] DIM = {{45, 25}, {65, 35}, {90, 50}};
@@ -83,6 +84,7 @@ public final class ArenaBuilder {
 			case 3 -> j.hx - 11; // Iglus
 			case 4 -> j.hz - 11; // Tribüne
 			case 5 -> j.hx - 13;
+			case 6 -> j.hx - 12; // Häuser am Ortsrand
 			default -> j.hx - 9; // Zelte
 		};
 		List<Vec3> perches = new ArrayList<>();
@@ -199,6 +201,17 @@ public final class ArenaBuilder {
 				fillBase(j, x, z, Blocks.NETHERRACK.defaultBlockState(), top);
 				clearAbove(j, x, z, 1);
 				if (r.nextInt(300) == 0) set(j, x, y0 + 1, z, Blocks.FIRE.defaultBlockState());
+			}
+			case 6 -> { // Dorf: Straßen und Marktplatz
+				fillBase(j, x, z, Blocks.DIRT.defaultBlockState(), villageGround(j, x, z));
+				clearAbove(j, x, z, 1);
+				boolean road = Math.abs(z) <= 3 || Math.abs(x) <= 2 || x * x + z * z <= 110;
+				if (!road) {
+					int k = r.nextInt(100);
+					if (k < 8) set(j, x, y0 + 1, z, Blocks.SHORT_GRASS.defaultBlockState());
+					else if (k == 8) set(j, x, y0 + 1, z, Blocks.POPPY.defaultBlockState());
+					else if (k == 9) set(j, x, y0 + 1, z, Blocks.OXEYE_DAISY.defaultBlockState());
+				}
 			}
 			default -> { // Grasland & Burgen
 				fillBase(j, x, z, Blocks.DIRT.defaultBlockState(), Blocks.GRASS_BLOCK.defaultBlockState());
@@ -401,6 +414,7 @@ public final class ArenaBuilder {
 				fortressRuin(j, -j.hx / 3, -(j.hz - 5));
 				fortressRuin(j, j.hx / 3, j.hz - 5);
 			}
+			case 6 -> village(j);
 			default -> {}
 		}
 	}
@@ -710,6 +724,331 @@ public final class ArenaBuilder {
 			}
 			if (!pillar && h > 0 && j.rnd.nextBoolean()) put(j, x + dx, 6, z, Blocks.NETHER_BRICK_FENCE.defaultBlockState());
 		}
+	}
+
+	// ================================================================== Dorf
+
+	/** Bodenbelag im Dorf: Pflaster auf Straßen, Muster auf dem Marktplatz, sonst Gras. */
+	private static BlockState villageGround(Job j, int x, int z) {
+		RandomSource r = j.rnd;
+		int d2 = x * x + z * z;
+		if (d2 <= 110) {
+			// Marktplatz: Ringe aus Steinziegeln und polierter Andesit
+			int ring = (int) Math.sqrt(d2);
+			if (ring % 3 == 0) return Blocks.STONE_BRICKS.defaultBlockState();
+			return r.nextInt(6) == 0 ? Blocks.ANDESITE.defaultBlockState() : Blocks.POLISHED_ANDESITE.defaultBlockState();
+		}
+		boolean main = Math.abs(z) <= 3, cross = Math.abs(x) <= 2;
+		if (main || cross) {
+			int edge = main ? Math.abs(z) : Math.abs(x);
+			int lim = main ? 3 : 2;
+			if (edge == lim) return r.nextInt(4) == 0 ? Blocks.MOSSY_COBBLESTONE.defaultBlockState() : Blocks.COBBLESTONE.defaultBlockState();
+			int k = r.nextInt(10);
+			return k < 6 ? Blocks.DIRT_PATH.defaultBlockState() : k < 8 ? Blocks.GRAVEL.defaultBlockState() : Blocks.COARSE_DIRT.defaultBlockState();
+		}
+		return Blocks.GRASS_BLOCK.defaultBlockState();
+	}
+
+	private static void village(Job j) {
+		RandomSource r = j.rnd;
+		int rowZ = 12; // Abstand der Häuserreihen zur Hauptstraße
+		// Brunnen in der Mitte
+		fountain(j, 0, 0);
+		// Marktstände rund um den Platz
+		BlockState[] awnings = {Blocks.WOOL.red().defaultBlockState(), Blocks.WOOL.yellow().defaultBlockState(),
+				Blocks.WOOL.blue().defaultBlockState(), Blocks.WOOL.lime().defaultBlockState()};
+		int[][] stalls = {{7, -7}, {-7, -7}, {7, 7}, {-7, 7}};
+		for (int i = 0; i < stalls.length; i++) stall(j, stalls[i][0], stalls[i][1], awnings[i]);
+		// Kirche am Nordende der Querstraße, Dorflinde im Süden
+		church(j, 0, -(rowZ - 2), -1);
+		bigTree(j, 0, rowZ + 2);
+		// Häuserreihen
+		int idx = 0;
+		for (int x = -j.hx + 9; x <= j.hx - 9; x += 14) {
+			if (Math.abs(x) < 13) continue;
+			for (int sgn = -1; sgn <= 1; sgn += 2) {
+				int hz = sgn * rowZ;
+				house(j, x, hz, -sgn, idx++);
+				garden(j, x, sgn * (rowZ + 7), sgn);
+				// Weg von der Haustür zur Straße
+				for (int z = 4; z < rowZ - 3; z++) put(j, x, 0, sgn * z, Blocks.DIRT_PATH.defaultBlockState());
+				lamp(j, x + 3, sgn * 5);
+			}
+		}
+		// Laternen an der Hauptstraße
+		for (int x = -j.hx + 4; x <= j.hx - 4; x += 10) {
+			if (Math.abs(x) <= 12) continue;
+			lamp(j, x, 4);
+			lamp(j, x, -4);
+		}
+		// Bäume, Büsche und Heuwagen am Rand
+		for (int i = 0; i < j.hx / 4; i++) {
+			int x = r.nextInt(j.hx * 2 - 6) - j.hx + 3;
+			int z = (j.hz - 2 - r.nextInt(3)) * (r.nextBoolean() ? 1 : -1);
+			if (r.nextInt(3) == 0) bush(j, x, z);
+			else oakTree(j, x, z);
+		}
+		haycart(j, -j.hx + 6, 6);
+		haycart(j, j.hx - 6, -6);
+		well(j, j.hx / 2 + 3, 6, Blocks.COBBLESTONE.defaultBlockState(), Blocks.DARK_OAK_PLANKS.defaultBlockState());
+		well(j, -j.hx / 2 - 3, -6, Blocks.COBBLESTONE.defaultBlockState(), Blocks.DARK_OAK_PLANKS.defaultBlockState());
+	}
+
+	private static BlockState stair(Block b, Direction facing) {
+		return b.defaultBlockState().setValue(StairBlock.FACING, facing);
+	}
+
+	private static BlockState log(Block b, Direction.Axis axis) {
+		return b.defaultBlockState().setValue(net.minecraft.world.level.block.RotatedPillarBlock.AXIS, axis);
+	}
+
+	private static BlockState pane(boolean alongX) {
+		return Blocks.GLASS_PANE.defaultBlockState()
+				.setValue(CrossCollisionBlock.EAST, alongX).setValue(CrossCollisionBlock.WEST, alongX)
+				.setValue(CrossCollisionBlock.NORTH, !alongX).setValue(CrossCollisionBlock.SOUTH, !alongX);
+	}
+
+	/**
+	 * Fachwerkhaus 9x7: Steinsockel, Holzbalken, weiße Füllung, Fenster, Satteldach mit Überstand,
+	 * Schornstein mit Rauch. {@code door} = +1/-1: Tür zeigt in +z / -z Richtung.
+	 */
+	private static void house(Job j, int cx, int cz, int door, int variant) {
+		Block roofStair = switch (variant % 3) {
+			case 0 -> Blocks.DARK_OAK_STAIRS;
+			case 1 -> Blocks.BRICK_STAIRS;
+			default -> Blocks.SPRUCE_STAIRS;
+		};
+		Block roofSlab = switch (variant % 3) {
+			case 0 -> Blocks.DARK_OAK_SLAB;
+			case 1 -> Blocks.BRICK_SLAB;
+			default -> Blocks.SPRUCE_SLAB;
+		};
+		BlockState fill = variant % 4 == 3 ? Blocks.BRICKS.defaultBlockState() : Blocks.CALCITE.defaultBlockState();
+		BlockState post = Blocks.SPRUCE_LOG.defaultBlockState();
+		BlockState air = Blocks.AIR.defaultBlockState();
+		for (int dx = -4; dx <= 4; dx++) {
+			for (int dz = -3; dz <= 3; dz++) {
+				boolean wallX = Math.abs(dx) == 4, wallZ = Math.abs(dz) == 3;
+				int x = cx + dx, z = cz + dz;
+				put(j, x, 0, z, Blocks.COBBLESTONE.defaultBlockState());
+				if (!wallX && !wallZ) {
+					put(j, x, 1, z, Blocks.SPRUCE_PLANKS.defaultBlockState());
+					for (int y = 2; y <= 8; y++) put(j, x, y, z, air);
+					continue;
+				}
+				put(j, x, 1, z, j.rnd.nextInt(5) == 0 ? Blocks.MOSSY_COBBLESTONE.defaultBlockState() : Blocks.COBBLESTONE.defaultBlockState());
+				boolean isPost = (wallX && wallZ) || (wallZ && Math.abs(dx) == 2) || (wallX && dz == 0 && false);
+				for (int y = 2; y <= 4; y++) {
+					BlockState s = isPost ? post : fill;
+					// Fenster
+					if (y == 3 && wallZ && Math.abs(dx) == 3) s = pane(true);
+					if (y == 3 && wallX && Math.abs(dz) == 1) s = pane(false);
+					// Tür
+					if (wallZ && dz == door * 3 && dx == 0 && y <= 3) s = air;
+					put(j, x, y, z, s);
+				}
+				// Rähm (waagerechter Balken oben)
+				put(j, x, 5, z, wallZ ? log(Blocks.STRIPPED_SPRUCE_LOG, Direction.Axis.X) : log(Blocks.STRIPPED_SPRUCE_LOG, Direction.Axis.Z));
+			}
+		}
+		// Satteldach entlang x, mit Überstand
+		for (int k = 0; k <= 3; k++) {
+			for (int dx = -5; dx <= 5; dx++) {
+				put(j, cx + dx, 5 + k, cz - (4 - k), stair(roofStair, Direction.SOUTH));
+				put(j, cx + dx, 5 + k, cz + (4 - k), stair(roofStair, Direction.NORTH));
+			}
+		}
+		for (int dx = -5; dx <= 5; dx++) put(j, cx + dx, 9, cz, roofSlab.defaultBlockState());
+		// Giebel
+		for (int k = 1; k <= 3; k++) {
+			for (int dz = -(3 - k); dz <= 3 - k; dz++) {
+				for (int sx = -4; sx <= 4; sx += 8) put(j, cx + sx, 5 + k, cz + dz, dz == 0 && k == 1 ? pane(false) : fill);
+			}
+		}
+		// Schornstein mit Rauch
+		int chx = cx + 2, chz = cz - door * 2;
+		for (int y = 2; y <= 10; y++) put(j, chx, y, chz, Blocks.BRICKS.defaultBlockState());
+		put(j, chx, 11, chz, Blocks.CAMPFIRE.defaultBlockState());
+		// Lampe über der Tür, Blumen vor dem Haus, etwas Einrichtung
+		put(j, cx + 1, 4, cz + door * 4, Blocks.LANTERN.defaultBlockState());
+		put(j, cx - 2, 1, cz + door * 4, Blocks.POPPY.defaultBlockState());
+		put(j, cx + 2, 1, cz + door * 4, Blocks.RED_TULIP.defaultBlockState());
+		put(j, cx - 3, 1, cz + door * 4, Blocks.AZALEA_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+		put(j, cx + 3, 1, cz + door * 4, Blocks.FLOWERING_AZALEA_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+		put(j, cx - 3, 2, cz - door * 2, Blocks.CRAFTING_TABLE.defaultBlockState());
+		put(j, cx - 2, 2, cz - door * 2, Blocks.BARREL.defaultBlockState());
+		put(j, cx + 3, 2, cz + door * 2, Blocks.BOOKSHELF.defaultBlockState());
+		put(j, cx - 3, 2, cz + door * 2, Blocks.LANTERN.defaultBlockState());
+	}
+
+	/** Steinkirche mit Satteldach, hohen Fenstern und Glockenturm. dir = -1: Kirche liegt Richtung -z. */
+	private static void church(Job j, int cx, int front, int dir) {
+		int len = Math.min(11, j.hz - Math.abs(front) - 7);
+		BlockState wall = Blocks.STONE_BRICKS.defaultBlockState();
+		BlockState air = Blocks.AIR.defaultBlockState();
+		for (int k = 0; k <= len; k++) {
+			int z = front + dir * k;
+			for (int dx = -4; dx <= 4; dx++) {
+				boolean side = Math.abs(dx) == 4, end = k == 0 || k == len;
+				put(j, cx + dx, 0, z, Blocks.STONE_BRICKS.defaultBlockState());
+				if (!side && !end) {
+					put(j, cx + dx, 1, z, Math.abs(dx) <= 1 ? Blocks.CARPET.red().defaultBlockState() : Blocks.SPRUCE_STAIRS.defaultBlockState()
+							.setValue(StairBlock.FACING, dir < 0 ? Direction.NORTH : Direction.SOUTH)); // rote Mitte, Bänke links/rechts
+					for (int y = 2; y <= 8; y++) put(j, cx + dx, y, z, air);
+					continue;
+				}
+				for (int y = 1; y <= 7; y++) {
+					BlockState s = j.rnd.nextInt(9) == 0 ? Blocks.MOSSY_STONE_BRICKS.defaultBlockState() : wall;
+					if (side && k % 3 == 1 && y >= 3 && y <= 5) s = pane(false); // hohe Fenster
+					if (k == 0 && Math.abs(dx) <= 1 && y <= 3) s = air; // Portal
+					if (k == 0 && Math.abs(dx) <= 1 && y == 4) s = Blocks.CHISELED_STONE_BRICKS.defaultBlockState();
+					if (k == len && dx == 0 && y >= 3 && y <= 5) s = pane(true); // Rosenfenster
+					put(j, cx + dx, y, z, s);
+				}
+			}
+		}
+		// Dach entlang z
+		for (int k = 0; k <= 4; k++) {
+			for (int kk = -1; kk <= len + 1; kk++) {
+				int z = front + dir * kk;
+				put(j, cx - (5 - k), 7 + k, z, stair(Blocks.DARK_OAK_STAIRS, Direction.EAST));
+				put(j, cx + (5 - k), 7 + k, z, stair(Blocks.DARK_OAK_STAIRS, Direction.WEST));
+			}
+		}
+		for (int kk = -1; kk <= len + 1; kk++) put(j, cx, 12, front + dir * kk, Blocks.DARK_OAK_SLAB.defaultBlockState());
+		for (int k = 1; k <= 4; k++) {
+			for (int dx = -(4 - k); dx <= 4 - k; dx++) {
+				put(j, cx + dx, 7 + k, front, wall);
+				put(j, cx + dx, 7 + k, front + dir * len, wall);
+			}
+		}
+		// Glockenturm vorne über dem Portal
+		int tz = front - dir * 2;
+		for (int dx = -2; dx <= 2; dx++) {
+			for (int dz = -2; dz <= 2; dz++) {
+				boolean rim = Math.abs(dx) == 2 || Math.abs(dz) == 2;
+				for (int y = 1; y <= 16; y++) {
+					if (!rim) {
+						if (y == 12) put(j, cx + dx, y, tz + dz, Blocks.STONE_BRICKS.defaultBlockState());
+						else if (y < 12 || y > 12) put(j, cx + dx, y, tz + dz, air);
+						continue;
+					}
+					BlockState s = wall;
+					boolean corner = Math.abs(dx) == 2 && Math.abs(dz) == 2;
+					if (!corner && y >= 13 && y <= 15) s = air; // Schallöffnungen
+					if (!corner && y <= 3 && dz == dir * 2 && Math.abs(dx) <= 1) s = air; // Eingang zur Kirche
+					if (!corner && y <= 3 && dz == -dir * 2 && dx == 0) s = air; // Eingang von der Straße
+					put(j, cx + dx, y, tz + dz, s);
+				}
+			}
+		}
+		put(j, cx, 13, tz, Blocks.BELL.defaultBlockState());
+		for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) put(j, cx + dx, 17, tz + dz, Blocks.STONE_BRICK_SLAB.defaultBlockState());
+		// spitzer Turmhelm
+		for (int lvl = 0; lvl <= 2; lvl++) {
+			int rr = 2 - lvl;
+			for (int dx = -rr; dx <= rr; dx++) for (int dz = -rr; dz <= rr; dz++) put(j, cx + dx, 18 + lvl * 2, tz + dz, Blocks.DARK_OAK_PLANKS.defaultBlockState());
+			for (int dx = -rr; dx <= rr; dx++) for (int dz = -rr; dz <= rr; dz++) put(j, cx + dx, 19 + lvl * 2, tz + dz, Blocks.DARK_OAK_SLAB.defaultBlockState());
+		}
+		put(j, cx, 23, tz, Blocks.SPRUCE_FENCE.defaultBlockState());
+		put(j, cx, 24, tz, Blocks.GOLD_BLOCK.defaultBlockState());
+		put(j, cx - 2, 4, tz - dir * 3, Blocks.LANTERN.defaultBlockState());
+		put(j, cx + 2, 4, tz - dir * 3, Blocks.LANTERN.defaultBlockState());
+	}
+
+	private static void fountain(Job j, int x, int z) {
+		for (int dx = -3; dx <= 3; dx++) {
+			for (int dz = -3; dz <= 3; dz++) {
+				int d2 = dx * dx + dz * dz;
+				if (d2 > 10) continue;
+				if (d2 > 4) {
+					put(j, x + dx, 1, z + dz, Blocks.STONE_BRICK_SLAB.defaultBlockState());
+				} else {
+					put(j, x + dx, -1, z + dz, Blocks.STONE_BRICKS.defaultBlockState());
+					put(j, x + dx, 0, z + dz, Blocks.WATER.defaultBlockState());
+				}
+			}
+		}
+		for (int y = 0; y <= 2; y++) put(j, x, y, z, Blocks.CHISELED_STONE_BRICKS.defaultBlockState());
+		put(j, x, 3, z, Blocks.STONE_BRICK_WALL.defaultBlockState());
+		put(j, x, 4, z, Blocks.LANTERN.defaultBlockState());
+	}
+
+	private static void stall(Job j, int x, int z, BlockState awning) {
+		for (int[] c : new int[][] {{-1, -1}, {1, -1}, {-1, 1}, {1, 1}}) {
+			put(j, x + c[0], 1, z + c[1], Blocks.SPRUCE_FENCE.defaultBlockState());
+			put(j, x + c[0], 2, z + c[1], Blocks.SPRUCE_FENCE.defaultBlockState());
+		}
+		for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) put(j, x + dx, 3, z + dz, awning);
+		put(j, x, 4, z, awning);
+		put(j, x, 1, z, Blocks.BARREL.defaultBlockState());
+		put(j, x + (x > 0 ? 1 : -1), 1, z, Blocks.HAY_BLOCK.defaultBlockState());
+		put(j, x, 2, z, Blocks.CARVED_PUMPKIN.defaultBlockState());
+	}
+
+	private static void lamp(Job j, int x, int z) {
+		put(j, x, 1, z, Blocks.STONE_BRICK_WALL.defaultBlockState());
+		put(j, x, 2, z, Blocks.DARK_OAK_FENCE.defaultBlockState());
+		put(j, x, 3, z, Blocks.DARK_OAK_FENCE.defaultBlockState());
+		put(j, x, 4, z, Blocks.LANTERN.defaultBlockState());
+	}
+
+	/** Gemüsegarten hinter dem Haus: Zaun, Weizen, Wasserrinne, Komposter. */
+	private static void garden(Job j, int cx, int cz, int sgn) {
+		for (int dx = -4; dx <= 4; dx++) {
+			for (int dz = -3; dz <= 3; dz++) {
+				int x = cx + dx, z = cz + dz;
+				if (Math.abs(z) > j.hz - 1) continue;
+				boolean rim = Math.abs(dx) == 4 || Math.abs(dz) == 3;
+				if (rim) {
+					put(j, x, 1, z, Blocks.OAK_FENCE.defaultBlockState());
+					continue;
+				}
+				if (dz == 0) {
+					put(j, x, 0, z, Blocks.WATER.defaultBlockState());
+					continue;
+				}
+				put(j, x, 0, z, Blocks.FARMLAND.defaultBlockState().setValue(net.minecraft.world.level.block.FarmlandBlock.MOISTURE, 7));
+				Block crop = (dx + 4) % 3 == 0 ? Blocks.CARROTS : (dx + 4) % 3 == 1 ? Blocks.WHEAT : Blocks.POTATOES;
+				put(j, x, 1, z, crop.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+			}
+		}
+		put(j, cx - 4, 1, cz - sgn * 3, Blocks.COMPOSTER.defaultBlockState());
+	}
+
+	private static void bush(Job j, int x, int z) {
+		BlockState b = Blocks.AZALEA_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true);
+		for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) if (j.rnd.nextInt(4) != 0) put(j, x + dx, 1, z + dz, b);
+		put(j, x, 2, z, Blocks.FLOWERING_AZALEA_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+	}
+
+	/** Große Dorflinde mit Bank drumherum. */
+	private static void bigTree(Job j, int x, int z) {
+		BlockState log = Blocks.OAK_LOG.defaultBlockState();
+		BlockState leaf = leaves(Blocks.OAK_LEAVES);
+		for (int y = 1; y <= 7; y++) put(j, x, y, z, log);
+		for (int dy = 5; dy <= 10; dy++) {
+			int rad = dy <= 6 ? 3 : dy <= 8 ? 4 : 2;
+			for (int dx = -rad; dx <= rad; dx++) {
+				for (int dz = -rad; dz <= rad; dz++) {
+					if (dx * dx + dz * dz > rad * rad + 1 || (dx == 0 && dz == 0 && dy <= 7)) continue;
+					if (j.rnd.nextInt(8) == 0) continue;
+					put(j, x + dx, dy, z + dz, leaf);
+				}
+			}
+		}
+		for (int[] o : new int[][] {{2, 0, 0}, {-2, 0, 1}, {0, 2, 2}, {0, -2, 3}}) {
+			Direction f = Direction.from2DDataValue(o[2]);
+			put(j, x + o[0], 1, z + o[1], stair(Blocks.SPRUCE_STAIRS, f));
+		}
+	}
+
+	private static void haycart(Job j, int x, int z) {
+		put(j, x, 1, z, Blocks.HAY_BLOCK.defaultBlockState());
+		put(j, x + 1, 1, z, Blocks.HAY_BLOCK.defaultBlockState());
+		put(j, x, 2, z, Blocks.HAY_BLOCK.defaultBlockState());
+		put(j, x - 1, 1, z, Blocks.SPRUCE_FENCE.defaultBlockState());
+		put(j, x + 2, 1, z, Blocks.BARREL.defaultBlockState());
 	}
 
 	private static int cz(int dz) {
