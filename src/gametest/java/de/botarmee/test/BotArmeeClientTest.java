@@ -44,10 +44,18 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 					ClientState.send("arena");
 				});
 				ctx.waitTicks(130);
-				int camZ = arena == 4 ? 58 : 52;
-				sp.getServer().runCommand("tp @a " + ax + " " + (home[1] + (arena == 4 ? 34 : 26)) + " " + (az + camZ) + " 180 " + (arena == 4 ? 33 : 26));
+				ctx.runOnClient(mc -> {
+					BattleConfig c = ClientState.config();
+					c.useArena = true;
+					c.teams.get(0).count = 40;
+					c.teams.get(1).count = 40;
+					c.names = false;
+					ClientState.send("setup");
+				});
+				ctx.waitTicks(40);
+				sp.getServer().runCommand("tp @a " + ax + " " + (home[1] + 46) + " " + (az + 66) + " 180 36");
 				sp.getConnection().waitForChunksRender();
-				ctx.waitTicks(20);
+				ctx.waitTicks(30);
 				ctx.runOnClient(mc -> {
 					if (!mc.gui.hud.isHidden()) mc.gui.hud.toggle();
 				});
@@ -56,6 +64,8 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 				ctx.takeScreenshot("preview_arena_" + arena);
 				ctx.runOnClient(mc -> {
 					if (mc.gui.hud.isHidden()) mc.gui.hud.toggle();
+					ClientState.config().names = true;
+					ClientState.send("clear");
 				});
 			}
 			sp.getServer().runCommand("tp @a " + home[0] + " " + home[1] + " " + home[2] + " 0 0");

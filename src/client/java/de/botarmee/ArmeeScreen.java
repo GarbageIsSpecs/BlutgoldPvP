@@ -17,7 +17,9 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -354,6 +356,7 @@ public class ArmeeScreen extends Screen {
 		int max = Math.max(0, total - (bottom - top));
 		scroll = Math.max(0, Math.min(scroll, max));
 		int y = top - (int) scroll;
+		g.enableScissor(x - 2, top, x + w + 2, bottom); // halb sichtbare Zeilen sauber abschneiden
 		for (Row r : rows) {
 			if (!r.visible()) continue;
 			int h = r.height();
@@ -364,6 +367,7 @@ public class ArmeeScreen extends Screen {
 			}
 			y += h + 3;
 		}
+		g.disableScissor();
 		if (max > 0) {
 			int trackH = bottom - top;
 			int barH = Math.max(14, trackH * trackH / (trackH + max));
@@ -990,29 +994,52 @@ public class ArmeeScreen extends Screen {
 	}
 
 	private final class ArenaGrid extends Row {
-		@Override int height() { return 3 * 40 + 2 * 3; }
+		private int cardW() {
+			return (cw() - 4) / 2;
+		}
+
+		private int thumbH() {
+			return (cardW() - 6) / 2; // Vorschaubild im Format 2:1
+		}
+
+		private int cardH() {
+			return thumbH() + 36;
+		}
+
+		@Override int height() { return 3 * cardH() + 2 * 4; }
 
 		@Override
 		void draw(GuiGraphicsExtractor g, int x, int y, int w, boolean hover, int mx, int my) {
-			int cw = (w - 3) / 2;
+			int cw = cardW(), ch = cardH(), th = thumbH();
+			int top = ctop(), bottom = cbottom();
 			for (int i = 0; i < ArenaBuilder.NAMES.length; i++) {
-				int cx = x + (i % 2) * (cw + 3), cy = y + (i / 2) * 43;
-				boolean sel = cfg.arena == i, hov = in(mx, my, cx, cy, cw, 40);
-				g.fill(cx, cy, cx + cw, cy + 40, sel ? 0xFF2E2818 : hov ? PANEL_LIGHT : PANEL);
-				g.outline(cx, cy, cw, 40, sel ? ACCENT : 0x22FFFFFF);
-				g.item(new ItemStack(arenaIcon(i)), cx + 5, cy + 5);
-				g.text(font, ArenaBuilder.NAMES[i], cx + 26, cy + 6, sel ? ACCENT : TEXT, false);
-				List<net.minecraft.util.FormattedCharSequence> lines = font.split(Component.literal(ArenaBuilder.DESCRIPTIONS[i]), cw - 30);
-				for (int l = 0; l < Math.min(2, lines.size()); l++) g.text(font, lines.get(l), cx + 26, cy + 18 + l * 10, MUTED, false);
+				int cx = x + (i % 2) * (cw + 4), cy = y + (i / 2) * (ch + 4);
+				if (cy + ch < top || cy > bottom) continue;
+				boolean sel = cfg.arena == i, hov = in(mx, my, cx, cy, cw, ch) && my >= top && my < bottom;
+				g.fill(cx, cy, cx + cw, cy + ch, sel ? 0xFF2E2818 : hov ? PANEL_LIGHT : PANEL);
+				// Vorschaubild
+				int tx = cx + 3, ty = cy + 3, tw = cw - 6;
+				g.blit(RenderPipelines.GUI_TEXTURED, Identifier.fromNamespaceAndPath(BotArmee.MOD_ID, "textures/gui/arena_" + i + ".png"),
+						tx, ty, 0, 0, tw, th, 256, 128, 256, 128);
+				if (!sel) g.fill(tx, ty, tx + tw, ty + th, hov ? 0x10000000 : 0x40000000);
+				g.outline(cx, cy, cw, ch, sel ? ACCENT : hov ? 0x88E8B84A : 0x22FFFFFF);
+				if (sel) {
+					g.fill(tx, ty, tx + 52, ty + 12, 0xCC000000);
+					g.text(font, "✔ gewählt", tx + 3, ty + 2, ACCENT, false);
+				}
+				g.item(new ItemStack(arenaIcon(i)), cx + 4, cy + th + 6);
+				g.text(font, ArenaBuilder.NAMES[i], cx + 23, cy + th + 6, sel ? ACCENT : TEXT, false);
+				List<net.minecraft.util.FormattedCharSequence> lines = font.split(Component.literal(ArenaBuilder.DESCRIPTIONS[i]), cw - 27);
+				for (int l = 0; l < Math.min(2, lines.size()); l++) g.text(font, lines.get(l), cx + 23, cy + th + 16 + l * 9, MUTED, false);
 			}
 		}
 
 		@Override
 		boolean click(double mx, double my, int x, int y, int w, int button) {
-			int cw = (w - 3) / 2;
+			int cw = cardW(), ch = cardH();
 			for (int i = 0; i < ArenaBuilder.NAMES.length; i++) {
-				int cx = x + (i % 2) * (cw + 3), cy = y + (i / 2) * 43;
-				if (in(mx, my, cx, cy, cw, 40)) cfg.arena = i;
+				int cx = x + (i % 2) * (cw + 4), cy = y + (i / 2) * (ch + 4);
+				if (in(mx, my, cx, cy, cw, ch)) cfg.arena = i;
 			}
 			return true;
 		}

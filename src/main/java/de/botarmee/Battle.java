@@ -157,6 +157,10 @@ public final class Battle {
 			sides.add(s);
 		}
 
+		double reach = half + 24;
+		for (BattleConfig.Team t : cfg.teams) reach = Math.max(reach, half + Math.sqrt(t.count * 1.6) * 2.6 + 8);
+		forceLoad(center, reach);
+
 		Scoreboard board = level.getScoreboard();
 		for (Side s : sides) {
 			String teamName = "botarmee_" + s.index;
@@ -270,8 +274,34 @@ public final class Battle {
 			}
 		}
 		Vec3 p = anchor.add(s.right.scale(x)).subtract(s.forward.scale(back));
-		int y = level == null ? (int) p.y : level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(p.x), Mth.floor(p.z));
+		int y = level == null ? (int) p.y : groundY(Mth.floor(p.x), Mth.floor(p.z));
 		return new Vec3(p.x, y, p.z);
+	}
+
+	/** Bodenhöhe – lädt den Chunk vorher, sonst würden Bots in noch nicht geladenen Gebieten ins Void fallen. */
+	static int groundY(int x, int z) {
+		return level.getChunk(x >> 4, z >> 4).getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x & 15, z & 15) + 1;
+	}
+
+	static final java.util.Set<Long> forced = new java.util.HashSet<>();
+
+	/** Hält das Schlachtfeld geladen, auch wenn du für Kamerafahrten weit wegfliegst. */
+	static void forceLoad(Vec3 a, double radius) {
+		int r = (int) Math.ceil(Math.min(radius, 160) / 16.0);
+		int cx = Mth.floor(a.x) >> 4, cz = Mth.floor(a.z) >> 4;
+		for (int dx = -r; dx <= r; dx++) {
+			for (int dz = -r; dz <= r; dz++) {
+				long key = (((long) (cx + dx)) << 32) ^ ((cz + dz) & 0xffffffffL);
+				if (forced.add(key)) level.setChunkForced(cx + dx, cz + dz, true);
+			}
+		}
+	}
+
+	static void releaseForced() {
+		if (level != null) {
+			for (long key : forced) level.setChunkForced((int) (key >> 32), (int) key, false);
+		}
+		forced.clear();
 	}
 
 	// ------------------------------------------------------------------ Steuerung
@@ -318,11 +348,13 @@ public final class Battle {
 			}
 		}
 		sides.clear();
+		releaseForced();
 		state = State.IDLE;
 		winnerSide = null;
 	}
 
 	public static void onServerStopping() {
+		releaseForced();
 		sides.clear();
 		state = State.IDLE;
 		level = null;
