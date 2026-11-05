@@ -16,6 +16,156 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 		System.out.println("BOTARMEE-TEST " + s);
 	}
 
+	private static void clickGui(ClientGameTestContext ctx, int gx, int gy) {
+		double scale = ctx.computeOnClient(mc -> mc.getWindow().getGuiScale());
+		ctx.getInput().setCursorPos(gx * scale, gy * scale);
+		ctx.waitTick();
+		ctx.getInput().pressMouse(0);
+		ctx.waitTicks(2);
+	}
+
+	/** Testet: Teamnamen ändern (beide Teams), Held duckt/dreht sich mit, Mitspielen, Schilde. */
+	private static void heldUndNamen(ClientGameTestContext ctx, TestSingleplayerContext sp, int[] home) {
+		// --- Namen ändern, zweimal hintereinander (das war der Bug)
+		ctx.runOnClient(mc -> ArmeeScreen.select(0, 0, 1));
+		ctx.setScreen(ArmeeScreen::new);
+		ctx.waitTicks(3);
+		clickGui(ctx, ArmeeScreen.testNameBox[0], ArmeeScreen.testNameBox[1]);
+		ctx.getInput().typeChars("A");
+		ctx.waitTicks(2);
+		clickGui(ctx, ArmeeScreen.testTeamRows[1][0], ArmeeScreen.testTeamRows[1][1]);
+		ctx.waitTicks(2);
+		clickGui(ctx, ArmeeScreen.testNameBox[0], ArmeeScreen.testNameBox[1]);
+		ctx.getInput().typeChars("B");
+		ctx.waitTicks(2);
+		clickGui(ctx, ArmeeScreen.testTeamRows[0][0], ArmeeScreen.testTeamRows[0][1]);
+		ctx.waitTicks(2);
+		clickGui(ctx, ArmeeScreen.testNameBox[0], ArmeeScreen.testNameBox[1]);
+		ctx.getInput().typeChars("C");
+		ctx.waitTicks(2);
+		log("shot");
+		ctx.takeScreenshot("namen_test");
+		ctx.setScreen(() -> null);
+		ctx.runOnClient(mc -> {
+			BattleConfig c = ClientState.config();
+			System.out.println("BOTARMEE-NAMES " + c.teams.get(0).name + " / " + c.teams.get(1).name);
+			c.teams.get(0).name = "Römer";
+			c.teams.get(1).name = "Wikinger";
+		});
+
+		// --- Held + Mitspielen
+		int hx = home[0] + 1500, hz = home[2];
+		sp.getServer().runCommand("tp @a " + hx + " " + home[1] + " " + hz + " 0 0");
+		sp.getConnection().waitForChunksRender();
+		ctx.runOnClient(mc -> {
+			BattleConfig c = ClientState.config();
+			c.useArena = false;
+			c.winner = -1;
+			c.distance = 24;
+			c.teams.get(0).count = 12;
+			c.teams.get(0).hero = true;
+			c.teams.get(0).archers = 0;
+			c.teams.get(1).count = 12;
+			c.teams.get(1).archers = 0;
+			c.teams.get(1).kit[5].item = "minecraft:shield";
+			c.playerTeam = 1;
+			c.playerTeleport = true;
+			c.playerKit = true;
+			ClientState.send("setup");
+		});
+		ctx.waitTicks(40);
+		sp.getServer().runCommand("gamemode survival @a");
+		// zum Helden schauen
+		ctx.waitTicks(5);
+		lookAtHero(ctx, sp);
+		ctx.waitTicks(10);
+		log("shot");
+		ctx.takeScreenshot("held_anschauen");
+		// 2x ducken
+		for (int i = 0; i < 2; i++) {
+			ctx.getInput().holdKeyFor(o -> o.keyShift, 4);
+			ctx.waitTicks(4);
+		}
+		boolean crouched = false;
+		for (int i = 0; i < 40 && !crouched; i++) {
+			ctx.waitTick();
+			crouched = sp.getServer().computeOnServer(server -> {
+				var h = de.botarmee.Battle.firstHero();
+				return h != null && h.isCrouching();
+			});
+		}
+		ctx.waitTicks(1);
+		ctx.takeScreenshot("held_duckt");
+		System.out.println("BOTARMEE-HERO crouched=" + crouched);
+		ctx.waitTicks(40);
+		// einmal drehen
+		lookAtHero(ctx, sp);
+		ctx.waitTicks(5);
+		float baseYaw = ctx.computeOnClient(mc -> mc.player.getYRot());
+		float pitch = ctx.computeOnClient(mc -> mc.player.getXRot());
+		for (int i = 1; i <= 12; i++) {
+			ctx.getInput().lookAt(baseYaw + i * 30, pitch);
+			ctx.waitTick();
+		}
+		float startYaw = sp.getServer().computeOnServer(server -> de.botarmee.Battle.firstHero().getYRot());
+		float maxTurn = 0;
+		for (int i = 0; i < 40; i++) {
+			ctx.waitTick();
+			float y = sp.getServer().computeOnServer(server -> de.botarmee.Battle.firstHero().getYRot());
+			maxTurn = Math.max(maxTurn, Math.abs(y - startYaw));
+			if (i == 12) ctx.takeScreenshot("held_dreht");
+		}
+		System.out.println("BOTARMEE-HERO spin=" + maxTurn);
+
+		// Kampf mit dir im Team Wikinger
+		ctx.runOnClient(mc -> ClientState.send("start"));
+		float minHp = 20;
+		for (int i = 0; i < 60; i++) {
+			ctx.waitTicks(20);
+			minHp = Math.min(minHp, ctx.computeOnClient(mc -> mc.player == null ? 20f : mc.player.getHealth()));
+			if (i == 8) ctx.takeScreenshot("mitkaempfen");
+			if (ctx.computeOnClient(mc -> ClientState.state.equals("OVER"))) break;
+		}
+		System.out.println("BOTARMEE-PLAYER minHp=" + minHp + " state=" + ctx.computeOnClient(mc -> ClientState.state));
+		sp.getServer().runOnServer(server -> System.out.println("BOTARMEE-STATS blocks=" + de.botarmee.Battle.statBlocks + " heroBlocks=" + de.botarmee.Battle.statHeroBlocks
+				+ " missedBlocks=" + de.botarmee.Battle.statMissedBlocks + " misses=" + de.botarmee.Battle.statMisses));
+		sp.getServer().runCommand("gamemode creative @a");
+		sp.getServer().runCommand("effect give @a instant_health 1 10 true");
+		ctx.runOnClient(mc -> {
+			BattleConfig c = ClientState.config();
+			c.playerTeam = -1;
+			c.teams.get(0).hero = false;
+			c.distance = 40;
+			ClientState.send("clear");
+		});
+		ctx.waitTicks(5);
+		sp.getServer().runCommand("tp @a " + home[0] + " " + home[1] + " " + home[2] + " 0 0");
+		sp.getServer().runOnServer(server -> {
+			ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
+			pl.getAbilities().flying = true;
+			pl.onUpdateAbilities();
+		});
+		sp.getConnection().waitForChunksRender();
+	}
+
+	private static void lookAtHero(ClientGameTestContext ctx, TestSingleplayerContext sp) {
+		double[] h = sp.getServer().computeOnServer(server -> {
+			var hero = de.botarmee.Battle.firstHero();
+			return hero == null ? null : new double[] {hero.getX(), hero.getEyeY(), hero.getZ()};
+		});
+		if (h == null) {
+			System.out.println("BOTARMEE-HERO missing");
+			return;
+		}
+		ctx.runOnClient(mc -> {
+			double dx = h[0] - mc.player.getX(), dy = h[1] - mc.player.getEyeY(), dz = h[2] - mc.player.getZ();
+			float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+			float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+			mc.player.setYRot(yaw);
+			mc.player.setXRot(pitch);
+		});
+	}
+
 	@Override
 	public void runTest(ClientGameTestContext ctx) {
 		try (TestSingleplayerContext sp = ctx.worldBuilder().create()) {
@@ -38,7 +188,8 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 				ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
 				return new int[] {pl.getBlockX(), pl.getBlockY(), pl.getBlockZ()};
 			});
-			for (int a = 0; a < 6; a++) {
+			boolean previews = System.getenv("BOTARMEE_PREVIEW_ONLY") != null;
+			for (int a = 0; a < (previews ? 6 : 0); a++) {
 				final int arena = a;
 				int ax = home[0] - 2000 - a * 400, az = home[2];
 				sp.getServer().runCommand("tp @a " + ax + " " + home[1] + " " + az + " 0 0");
@@ -77,7 +228,9 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			sp.getServer().runCommand("tp @a " + home[0] + " " + home[1] + " " + home[2] + " 0 0");
 			sp.getConnection().waitForChunksRender();
 			ctx.runOnClient(mc -> ClientState.send("forgetArena"));
-			if (System.getenv("BOTARMEE_PREVIEW_ONLY") != null) return;
+			if (previews) return;
+
+			heldUndNamen(ctx, sp, home);
 
 			ctx.runOnClient(mc -> {
 				BattleConfig c = ClientState.config();

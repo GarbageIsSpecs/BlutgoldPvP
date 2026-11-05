@@ -55,6 +55,10 @@ public class ArmeeScreen extends Screen {
 		slot = slotIndex;
 	}
 
+	/** Für den automatischen Test: Mitte des Namensfelds und eines Team-Eintrags (GUI-Koordinaten). */
+	public static int[] testNameBox = new int[2];
+	public static int[][] testTeamRows = new int[BattleConfig.MAX_TEAMS][2];
+
 	public ArmeeScreen() {
 		super(Component.literal("Bot-Armee"));
 	}
@@ -161,9 +165,13 @@ public class ArmeeScreen extends Screen {
 			g.fill(px, y, px + 3, y + 26, t.rgb());
 			g.text(font, trim(t.name, SIDEBAR - 16), px + 9, y + 4, sel ? TEXT : 0xFFD0D4DC, false);
 			String info = t.count + " Bots";
+			if (t.hero) info += " +Held";
 			if (cfg.winner == i) info += " · ★";
-			g.text(font, info, px + 9, y + 15, MUTED, false);
+			if (cfg.playerTeam == i) info += " · Du";
+			g.text(font, trim(info, SIDEBAR - 12), px + 9, y + 15, MUTED, false);
 			final int idx = i;
+			testTeamRows[i][0] = px + 20;
+			testTeamRows[i][1] = y + 13;
 			buttons.add(new Button(px, y, SIDEBAR, 26, () -> {
 				team = idx;
 				nameBox.setValue(cur().name);
@@ -186,6 +194,7 @@ public class ArmeeScreen extends Screen {
 			smallButton(g, mx, my, px + 6, y + 2, SIDEBAR - 12, "− Team entfernen", DANGER, () -> {
 				cfg.teams.remove(team);
 				if (cfg.winner >= cfg.teams.size()) cfg.winner = -1;
+				if (cfg.playerTeam >= cfg.teams.size()) cfg.playerTeam = -1;
 				team = Math.max(0, team - 1);
 				nameBox.setValue(cur().name);
 			});
@@ -271,6 +280,15 @@ public class ArmeeScreen extends Screen {
 				rows.add(new Choice("Fernkampf-Waffe", () -> BattleConfig.RANGED, () -> t.ranged, v -> t.ranged = v));
 				rows.add(new Slider("Ausrüstungs-Mix", 0, 100, 5, () -> t.variation, v -> t.variation = (int) v, v -> v < 1 ? "alle gleich" : (int) v + "% zufällig"));
 				rows.add(new Label("Mix = manche Bots haben schlechtere oder fehlende Teile."));
+				rows.add(new Header("Held & Du"));
+				rows.add(new Toggle("Held (bessere KI)", () -> t.hero, v -> t.hero = v));
+				rows.add(new Label("Steht vor der Armee, blockt mit Schild, kontert, kreist.").visibleIf(() -> t.hero));
+				rows.add(new Label("Schau ihn an und duck dich 2x – er duckt sich mit.").visibleIf(() -> t.hero));
+				rows.add(new Label("Schau ihn an und dreh dich einmal – er dreht sich mit.").visibleIf(() -> t.hero));
+				rows.add(new Toggle("Ich kämpfe in diesem Team", () -> cfg.playerTeam == team, v -> cfg.playerTeam = v ? team : -1));
+				rows.add(new Toggle("Zu meinem Team teleportieren", () -> cfg.playerTeleport, v -> cfg.playerTeleport = v).visibleIf(() -> cfg.playerTeam == team));
+				rows.add(new Toggle("Team-Ausrüstung anziehen", () -> cfg.playerKit, v -> cfg.playerKit = v).visibleIf(() -> cfg.playerTeam == team));
+				rows.add(new Label("Für Treffer: /gamemode survival. Alte Rüstung kommt ins Inventar.").visibleIf(() -> cfg.playerTeam == team));
 				rows.add(new Header("Stärke"));
 				rows.add(new Slider("Vorteil", 0, 100, 5, () -> t.edge, v -> t.edge = (int) v, ArmeeScreen::edgeText));
 				rows.add(new Label("50 = fair. Höher = etwas mehr Leben, Schaden, Tempo."));
@@ -292,6 +310,8 @@ public class ArmeeScreen extends Screen {
 				rows.add(new Slider("Lauftempo", 40, 200, 5, () -> cfg.speed, v -> cfg.speed = (int) v, v -> (int) v + "%"));
 				rows.add(new Slider("Angriffstempo", 30, 200, 5, () -> cfg.aggression, v -> cfg.aggression = (int) v, v -> (int) v + "%"));
 				rows.add(new Toggle("Countdown 3-2-1", () -> cfg.countdown, v -> cfg.countdown = v));
+				rows.add(new Toggle("Menschlicher kämpfen", () -> cfg.human, v -> cfg.human = v));
+				rows.add(new Label("Bögen laufen, zögern, Schild hoch, ab und zu daneben hauen.").visibleIf(() -> cfg.human));
 			}
 			case 3 -> {
 				rows.add(new Header("Schlachtfeld"));
@@ -940,6 +960,8 @@ public class ArmeeScreen extends Screen {
 				nameBox.setY(y + 2);
 				nameBox.setWidth(bw);
 				nameBox.visible = true;
+				testNameBox[0] = nameBox.getX() + 10;
+				testNameBox[1] = nameBox.getY() + 8;
 			}
 		}
 	}

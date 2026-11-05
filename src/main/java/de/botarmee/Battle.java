@@ -65,7 +65,7 @@ public final class Battle {
 		}
 
 		int alive() {
-			return bots.size();
+			return bots.size() + (index == joinedSide && joinedAlive() ? 1 : 0);
 		}
 	}
 
@@ -87,6 +87,47 @@ public final class Battle {
 	static int lastAliveTotal = -1, lastChangeTick = 0;
 	static int statusIn;
 	static Side winnerSide;
+	static int serverTicks;
+
+	// ---- du selbst im Team
+	static java.util.UUID joinedId;
+	static int joinedSide = -1;
+	static boolean joinedOut;
+
+	static ServerPlayer joinedPlayer() {
+		if (joinedId == null || level == null) return null;
+		return level.getServer().getPlayerList().getPlayer(joinedId);
+	}
+
+	static boolean joinedAlive() {
+		ServerPlayer p = joinedPlayer();
+		return p != null && p.isAlive() && !joinedOut && !p.isSpectator();
+	}
+
+	/** Ist der Spieler auf dieser Seite? (für Friendly Fire) */
+	public static boolean isPlayerOnSide(net.minecraft.world.entity.Entity e, Side s) {
+		return s != null && e instanceof ServerPlayer p && p.getUUID().equals(joinedId) && joinedSide == s.index;
+	}
+
+	/** Darf ein Bot dem mitspielenden Spieler schaden? (keine Treffer vom eigenen Team) */
+	public static boolean allowDamageToPlayer(LivingEntity victim, net.minecraft.world.damagesource.DamageSource source) {
+		if (!(victim instanceof ServerPlayer p) || joinedId == null || !p.getUUID().equals(joinedId)) return true;
+		if (source.getEntity() instanceof BotEntity b && b.side != null && b.side.index == joinedSide) return false;
+		return true;
+	}
+
+	// ---- Beobachtung der Spieler (für den Helden: mit-ducken, mit-drehen)
+	static final class Watch {
+		boolean lastSneak;
+		float lastYaw;
+		final java.util.ArrayDeque<Integer> sneakToggles = new java.util.ArrayDeque<>();
+		final java.util.ArrayDeque<float[]> yawDeltas = new java.util.ArrayDeque<>();
+		BotEntity lookHero;
+		int lookTick = -1000;
+	}
+
+	static final java.util.Map<java.util.UUID, Watch> watches = new java.util.HashMap<>();
+	static final List<BotEntity> heroes = new ArrayList<>();
 
 	// ------------------------------------------------------------------ Befehle aus dem Menü
 
@@ -182,13 +223,41 @@ public final class Battle {
 
 			int count = Math.min(s.cfg.count, BattleConfig.MAX_TOTAL - total);
 			int archers = (int) Math.round(count * s.cfg.archers / 100.0);
+			s.startCount = count; // für die Formation
 			for (int i = 0; i < count; i++) {
 				boolean archer = i >= count - archers;
-				BotEntity bot = spawnBot(s, i, archer, random, edge);
+				BotEntity bot = spawnBot(s, i, archer, random, edge, false);
 				if (bot != null) s.bots.add(bot);
+			}
+			if (s.cfg.hero) {
+				BotEntity hero = spawnBot(s, -1, false, random, edge, true);
+				if (hero != null) {
+					s.bots.add(hero);
+					heroes.add(hero);
+				}
 			}
 			s.startCount = s.bots.size();
 			total += s.startCount;
+		}
+
+		// du selbst kämpfst mit
+		if (cfg.playerTeam >= 0 && cfg.playerTeam < sides.size()) {
+			Side mine = sides.get(cfg.playerTeam);
+			joinedId = player.getUUID();
+			joinedSide = mine.index;
+			joinedOut = false;
+			board.addPlayerToTeam(player.getScoreboardName(), mine.team);
+			mine.startCount++;
+			if (cfg.playerTeleport) {
+				Vec3 at = mine.anchor.add(mine.forward.scale(2.5)).add(mine.right.scale(mine.cfg.hero ? 2.5 : 0));
+				int gy = groundY(Mth.floor(at.x), Mth.floor(at.z));
+				float yaw = (float) (Mth.atan2(mine.forward.z, mine.forward.x) * Mth.RAD_TO_DEG) - 90.0F;
+				player.teleportTo(level, at.x, gy, at.z, java.util.Set.of(), yaw, 0, true);
+				player.getAbilities().flying = false;
+				player.onUpdateAbilities();
+			}
+			if (cfg.playerKit) equipPlayer(player, mine);
+			msg(player, "Du kämpfst für " + colorCode(mine.cfg.color) + mine.cfg.name + "§f! Tipp: /gamemode survival, damit du auch getroffen wirst.");
 		}
 
 		state = State.READY;
@@ -201,24 +270,48 @@ public final class Battle {
 		}
 	}
 
-	private static BotEntity spawnBot(Side s, int slot, boolean archer, RandomSource random, double edge) {
+	/** Zieht dem Spieler die Team-Ausrüstung an; alte Rüstung kommt ins Inventar. */
+	private static void equipPlayer(ServerPlayer player, Side s) {
+		int dye = cfg.dyeLeather ? BattleConfig.COLOR_DYE[Math.floorMod(s.cfg.color, BattleConfig.COLOR_DYE.length)] : -1;
+		for (int i = 0; i < 6; i++) {
+			ItemStack stack = Kits.build(level.registryAccess(), s.cfg.kit[i], i, dye, 0);
+			if (stack.isEmpty()) continue;
+			if (i == 4) {
+				player.getInventory().add(stack); // Waffe ins Inventar, nichts wird überschrieben
+				continue;
+			}
+			ItemStack old = player.getItemBySlot(Kits.SLOTS[i]);
+			if (!old.isEmpty()) player.getInventory().add(old.copy());
+			player.setItemSlot(Kits.SLOTS[i], stack);
+		}
+	}
+
+	private static BotEntity spawnBot(Side s, int slot, boolean archer, RandomSource random, double edge, boolean hero) {
 		BotEntity bot = new BotEntity(BotArmee.BOT, level);
 		bot.side = s;
 		bot.slot = slot;
+		bot.hero = hero;
+		bot.wobble = 0.35F + random.nextFloat() * 0.65F;
+		bot.phase = random.nextInt(1000);
+		bot.strafeDir = random.nextBoolean() ? 1 : -1;
 		bot.archer = archer;
 		bot.flanker = slot % 2 == 1;
 		bot.setTeamIndex(s.index);
 		bot.setSkinSeed(random.nextInt(1 << 30));
 		bot.retargetIn = random.nextInt(10);
 
-		Vec3 p = slotPos(s, slot, s.anchor);
+		Vec3 p = hero ? heroPos(s) : slotPos(s, slot, s.anchor);
 		float yaw = (float) (Mth.atan2(s.forward.z, s.forward.x) * Mth.RAD_TO_DEG) - 90.0F;
 		bot.snapTo(p.x, p.y, p.z, yaw, 0);
 		bot.setYHeadRot(yaw);
 		bot.setYBodyRot(yaw);
 
 		String name = BotNames.next(random);
-		bot.setCustomName(Component.literal(name));
+		if (hero) {
+			bot.setCustomName(Component.literal("★ ").withStyle(net.minecraft.ChatFormatting.GOLD).append(Component.literal(name)));
+		} else {
+			bot.setCustomName(Component.literal(name));
+		}
 		bot.setCustomNameVisible(cfg.names);
 		bot.setGlowingTag(cfg.glow);
 
@@ -229,15 +322,15 @@ public final class Battle {
 				piece = new BattleConfig.Piece(s.cfg.ranged == 1 ? "minecraft:crossbow" : "minecraft:bow");
 			}
 			if (archer && i == 5 && piece.item.contains("shield")) piece = new BattleConfig.Piece();
-			int down = i < 4 ? Kits.rollDowngrade(random, s.cfg.variation) : 0;
+			int down = i < 4 && !hero ? Kits.rollDowngrade(random, s.cfg.variation) : 0;
 			ItemStack stack = Kits.build(level.registryAccess(), piece, i, dye, down);
 			bot.setItemSlot(Kits.SLOTS[i], stack);
 		}
 
-		double hp = 20 * (1 + 0.25 * edge);
+		double hp = 20 * (1 + 0.25 * edge) * (hero ? 1.5 : 1);
 		bot.getAttribute(Attributes.MAX_HEALTH).setBaseValue(hp);
 		bot.setHealth((float) hp);
-		bot.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(s.speed * (0.92 + random.nextDouble() * 0.16));
+		bot.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(s.speed * (hero ? 1.1 : 0.92 + random.nextDouble() * 0.16));
 
 		if (!level.addFreshEntity(bot)) return null;
 		level.getScoreboard().addPlayerToTeam(bot.getScoreboardName(), s.team);
@@ -280,6 +373,16 @@ public final class Battle {
 		Vec3 p = anchor.add(s.right.scale(x)).subtract(s.forward.scale(back));
 		int y = level == null ? (int) p.y : groundY(Mth.floor(p.x), Mth.floor(p.z));
 		return new Vec3(p.x, y, p.z);
+	}
+
+	/** Der Held steht vor seiner Armee. */
+	static Vec3 heroPos(Side s) {
+		Vec3 p = s.anchor.add(s.forward.scale(3));
+		return new Vec3(p.x, level == null ? p.y : groundY(Mth.floor(p.x), Mth.floor(p.z)), p.z);
+	}
+
+	static Vec3 homePos(BotEntity bot, Side s) {
+		return bot.hero ? heroPos(s) : slotPos(s, bot.slot, s.anchor);
 	}
 
 	/** Bodenhöhe – lädt den Chunk vorher, sonst würden Bots in noch nicht geladenen Gebieten ins Void fallen. */
@@ -347,6 +450,17 @@ public final class Battle {
 	}
 
 	public static void clear() {
+		heroes.clear();
+		watches.clear();
+		if (joinedId != null && level != null) {
+			ServerPlayer p = joinedPlayer();
+			if (p != null) {
+				PlayerTeam pt = level.getScoreboard().getPlayersTeam(p.getScoreboardName());
+				if (pt != null && pt.getName().startsWith("botarmee_")) level.getScoreboard().removePlayerFromTeam(p.getScoreboardName(), pt);
+			}
+		}
+		joinedId = null;
+		joinedSide = -1;
 		for (Side s : sides) {
 			for (BotEntity b : s.bots) b.discard();
 			if (s.team != null && level != null) {
@@ -381,6 +495,16 @@ public final class Battle {
 		}
 
 		for (Side s : sides) s.bots.removeIf(b -> b.isRemoved() || !b.isAlive());
+		heroes.removeIf(b -> b.isRemoved() || !b.isAlive());
+		serverTicks++;
+		if (!heroes.isEmpty()) watchPlayers();
+		if (joinedId != null && !joinedOut && state == State.FIGHT) {
+			ServerPlayer p = joinedPlayer();
+			if (p != null && !p.isAlive()) {
+				joinedOut = true;
+				msg(p, "§cDu bist gefallen! §fDein Team kämpft ohne dich weiter.");
+			}
+		}
 
 		switch (state) {
 			case COUNTDOWN -> {
@@ -448,6 +572,10 @@ public final class Battle {
 	}
 
 	/** Für die Fehlersuche: was machen die übrigen Bots gerade? */
+	public static BotEntity firstHero() {
+		return heroes.isEmpty() ? null : heroes.get(0);
+	}
+
 	public static String debug() {
 		StringBuilder sb = new StringBuilder("state=" + state + " ai=" + ai + " tick=" + tick + " stallFor=" + (tick - lastChangeTick));
 		for (Side s : sides) {
@@ -548,6 +676,16 @@ public final class Battle {
 			return;
 		}
 		if (bot.attackCooldown > 0) bot.attackCooldown--;
+		if (bot.blockCooldown > 0) bot.blockCooldown--;
+		if (bot.emote != 0) {
+			boolean danger = state == State.FIGHT && bot.enemy != null && bot.enemy.isAlive() && bot.distanceToSqr(bot.enemy) < 36;
+			if (!danger) {
+				runEmote(bot);
+				return;
+			}
+			bot.emote = 0;
+			bot.setPose(net.minecraft.world.entity.Pose.STANDING);
+		}
 
 		switch (state) {
 			case READY, COUNTDOWN -> holdSlot(bot, s, 0.8, true);
@@ -640,7 +778,7 @@ public final class Battle {
 	}
 
 	private static LivingEntity nearestEnemy(BotEntity bot, Side own) {
-		BotEntity best = null;
+		LivingEntity best = null;
 		double bestD = Double.MAX_VALUE;
 		int budget = ai == 0 ? Integer.MAX_VALUE : ai == 1 ? 60 : 24;
 		for (Side s : sides) {
@@ -662,18 +800,29 @@ public final class Battle {
 				}
 			}
 		}
+		// der mitkämpfende Spieler ist auch ein Gegner
+		if (joinedSide >= 0 && own.index != joinedSide && joinedAlive()) {
+			ServerPlayer p = joinedPlayer();
+			if (!p.isCreative() && p.level() == bot.level()) {
+				double d = p.distanceToSqr(bot) * 0.9;
+				if (d < bestD) return p;
+			}
+		}
 		return best;
 	}
 
 	private static void holdSlot(BotEntity bot, Side s, double speed, boolean faceForward) {
-		Vec3 target = slotPos(s, bot.slot, s.anchor);
+		Vec3 target = homePos(bot, s);
 		double d2 = bot.position().distanceToSqr(target.x, bot.getY(), target.z);
 		if (d2 > 1.4) {
 			moveTo(bot, target, speed);
 		} else {
 			bot.getNavigation().stop();
 			LivingEntity look = state == State.FIGHT ? bot.enemy : null;
-			if (look != null && !faceForward) {
+			ServerPlayer watcher = bot.hero ? watcherOf(bot) : null;
+			if (watcher != null && (look == null || faceForward)) {
+				bot.getLookControl().setLookAt(watcher, 20, 20); // der Held schaut zurück
+			} else if (look != null && !faceForward) {
 				bot.getLookControl().setLookAt(look, 30, 30);
 			} else {
 				Vec3 f = bot.getEyePosition().add(s.forward.scale(10));
@@ -701,26 +850,213 @@ public final class Battle {
 		stopDrawing(bot);
 		bot.getLookControl().setLookAt(enemy, 30, 30);
 		double aggr = cfg.aggression / 100.0;
-		if (!bot.isWithinMeleeAttackRange(enemy)) {
-			if (ai == 2) {
-				bot.getMoveControl().setWantedPosition(enemy.getX(), enemy.getY(), enemy.getZ(), 1.25);
-			} else if (--bot.repathIn <= 0 || bot.getNavigation().isDone()) {
-				bot.repathIn = ai == 0 ? (dist < 8 ? 4 : 10) : (dist < 8 ? 8 : 20);
-				bot.getNavigation().moveTo(enemy, 1.25);
+		boolean hero = bot.hero;
+		boolean human = cfg.human && (ai == 0 || hero); // der Held bleibt auch bei vielen Bots schlau
+
+		// Schild oben halten
+		if (bot.blockTicks > 0) {
+			bot.getNavigation().stop();
+			if (--bot.blockTicks == 0) {
+				bot.stopUsingItem();
+				bot.blockCooldown = hero ? 12 : 25 + bot.getRandom().nextInt(25);
+				if (hero) bot.attackCooldown = 0; // Konter direkt nach dem Blocken
+			} else if (hero && bot.isWithinMeleeAttackRange(enemy)) {
+				bot.getMoveControl().strafe(-0.15F, 0.35F * bot.strafeDir);
 			}
 			return;
 		}
-		// im Nahkampf: ein bisschen tänzeln
+
+		if (!bot.isWithinMeleeAttackRange(enemy)) {
+			if (ai == 2 && !hero) {
+				bot.getMoveControl().setWantedPosition(enemy.getX(), enemy.getY(), enemy.getZ(), 1.25);
+				return;
+			}
+			if (human && !hero && bot.hesitate > 0) {
+				// zögern: kurz stehen bleiben und seitlich tänzeln
+				bot.hesitate--;
+				bot.getNavigation().stop();
+				bot.getMoveControl().strafe(0, 0.4F * bot.strafeDir);
+				return;
+			}
+			if (human && !hero && dist > 7 && dist < 14 && bot.getRandom().nextInt(260) == 0) {
+				bot.hesitate = 8 + bot.getRandom().nextInt(18);
+				if (bot.getRandom().nextBoolean()) bot.strafeDir = -bot.strafeDir;
+			}
+			if (--bot.repathIn <= 0 || bot.getNavigation().isDone()) {
+				bot.repathIn = ai == 0 ? (dist < 8 ? 4 : 10) : (dist < 8 ? 8 : 20);
+				double speed = hero ? 1.35 : 1.25;
+				if (human && dist > 5) {
+					// nicht schnurgerade: in einem Bogen auf den Gegner zu
+					Vec3 to = enemy.position().subtract(bot.position()).multiply(1, 0, 1);
+					if (to.lengthSqr() > 1e-4) {
+						to = to.normalize();
+						Vec3 side = new Vec3(-to.z, 0, to.x);
+						double off = Math.sin((tick + bot.phase) * 0.07) * Math.min(3.5, dist * 0.22) * (hero ? 0.4 : bot.wobble);
+						Vec3 t = enemy.position().add(side.scale(off));
+						bot.getNavigation().moveTo(t.x, t.y, t.z, speed);
+						return;
+					}
+				}
+				bot.getNavigation().moveTo(enemy, speed);
+			}
+			return;
+		}
+
 		bot.getNavigation().stop();
-		if (ai == 0 && bot.getRandom().nextInt(4) == 0) {
+
+		// droht gleich ein Schlag? -> Schild hoch (manchmal zu spät oder gar nicht)
+		if (human && bot.blockCooldown <= 0 && hasShield(bot) && threatened(bot, enemy)) {
+			float chance = hero ? 0.85F : 0.3F;
+			if (bot.getRandom().nextFloat() < chance) {
+				bot.startUsingItem(InteractionHand.OFF_HAND);
+				if (hero) statHeroBlocks++; else statBlocks++;
+				bot.blockTicks = hero ? 8 + bot.getRandom().nextInt(5) : 9 + bot.getRandom().nextInt(12);
+				return;
+			}
+			bot.blockCooldown = 10; // diesmal verpasst
+			statMissedBlocks++;
+		}
+
+		// im Nahkampf tänzeln / zurückweichen
+		if (bot.backoff > 0) {
+			bot.backoff--;
+			bot.getMoveControl().strafe(-0.6F, 0.3F * bot.strafeDir);
+		} else if (hero) {
+			if (bot.getRandom().nextInt(30) == 0) bot.strafeDir = -bot.strafeDir;
+			bot.getMoveControl().strafe(0.15F, 0.55F * bot.strafeDir); // kreist um den Gegner
+		} else if (ai == 0 && bot.getRandom().nextInt(4) == 0) {
 			bot.getMoveControl().strafe(bot.getRandom().nextFloat() * 0.6F - 0.1F, bot.getRandom().nextFloat() * 1.2F - 0.6F);
 		}
+
 		if (bot.attackCooldown <= 0 && bot.hasLineOfSight(enemy)) {
 			bot.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT, false);
-			bot.doHurtTarget(lvl, enemy);
-			int base = 10 + bot.getRandom().nextInt(9);
+			boolean miss = human && !hero && bot.getRandom().nextFloat() < 0.12F; // daneben geschlagen
+			if (!miss) bot.doHurtTarget(lvl, enemy);
+			else statMisses++;
+			int base = hero ? 10 + bot.getRandom().nextInt(4) : 10 + bot.getRandom().nextInt(9);
 			bot.attackCooldown = Math.max(5, (int) Math.round(base / aggr));
-			if (ai == 0 && bot.onGround() && bot.getRandom().nextInt(4) == 0) bot.getJumpControl().jump(); // Crit-Sprung
+			if (human && bot.getRandom().nextFloat() < (hero ? 0.45F : 0.2F)) bot.backoff = 3 + bot.getRandom().nextInt(4);
+			float critChance = hero ? 0.5F : 0.25F;
+			if (ai == 0 && bot.onGround() && bot.getRandom().nextFloat() < critChance) bot.getJumpControl().jump(); // Crit-Sprung
+		}
+	}
+
+	/** Zähler für den automatischen Test. */
+	public static int statBlocks, statHeroBlocks, statMisses, statMissedBlocks;
+
+	private static boolean hasShield(BotEntity bot) {
+		return bot.getOffhandItem().is(Items.SHIELD);
+	}
+
+	/** Holt der Gegner gerade zum Schlag aus und schaut uns an? */
+	private static boolean threatened(BotEntity bot, LivingEntity enemy) {
+		if (bot.distanceToSqr(enemy) > 3.8 * 3.8) return false;
+		Vec3 look = enemy.getViewVector(1.0F);
+		Vec3 to = bot.position().subtract(enemy.position()).multiply(1, 0, 1);
+		if (to.lengthSqr() < 1e-4) return true;
+		boolean facing = new Vec3(look.x, 0, look.z).normalize().dot(to.normalize()) > 0.6;
+		if (!facing) return false;
+		if (enemy instanceof BotEntity eb) {
+			return eb.enemy == bot && eb.blockTicks == 0 && eb.attackCooldown <= (bot.hero ? 8 : 6);
+		}
+		if (enemy instanceof ServerPlayer p) {
+			return p.getAttackStrengthScale(0.0F) > 0.75F;
+		}
+		return false;
+	}
+
+	// ------------------------------------------------------------------ Held: Spieler beobachten
+
+	/** Wer schaut den Helden gerade an? */
+	private static ServerPlayer watcherOf(BotEntity hero) {
+		for (ServerPlayer p : level.players()) {
+			Watch w = watches.get(p.getUUID());
+			if (w != null && w.lookHero == hero && serverTicks - w.lookTick < 10) return p;
+		}
+		return null;
+	}
+
+	private static boolean looksAt(ServerPlayer p, BotEntity bot) {
+		Vec3 eye = p.getEyePosition();
+		Vec3 to = bot.getEyePosition().subtract(eye);
+		double d = to.length();
+		if (d > 32 || d < 0.5) return false;
+		return p.getViewVector(1.0F).dot(to.scale(1 / d)) > 0.95; // ungefähr 18° Kegel
+	}
+
+	private static void watchPlayers() {
+		for (ServerPlayer p : level.players()) {
+			Watch w = watches.computeIfAbsent(p.getUUID(), k -> {
+				Watch nw = new Watch();
+				nw.lastYaw = p.getYRot();
+				return nw;
+			});
+			boolean sneak = p.isShiftKeyDown();
+			if (sneak != w.lastSneak) {
+				w.lastSneak = sneak;
+				w.sneakToggles.addLast(serverTicks);
+			}
+			while (!w.sneakToggles.isEmpty() && serverTicks - w.sneakToggles.peekFirst() > 40) w.sneakToggles.pollFirst();
+			float delta = Math.abs(Mth.wrapDegrees(p.getYRot() - w.lastYaw));
+			w.lastYaw = p.getYRot();
+			w.yawDeltas.addLast(new float[] {serverTicks, delta});
+			while (!w.yawDeltas.isEmpty() && serverTicks - w.yawDeltas.peekFirst()[0] > 30) w.yawDeltas.pollFirst();
+
+			for (BotEntity h : heroes) {
+				if (looksAt(p, h)) {
+					w.lookHero = h;
+					w.lookTick = serverTicks;
+					break;
+				}
+			}
+			BotEntity h = w.lookHero;
+			if (h == null || h.isRemoved() || serverTicks - w.lookTick > 40 || h.emote != 0) continue;
+			// mehrmals ducken -> Held duckt sich mit
+			if (w.sneakToggles.size() >= 4) {
+				w.sneakToggles.clear();
+				h.emote = 1;
+				h.emoteTicks = 0;
+				continue;
+			}
+			// einmal um sich selbst gedreht -> Held dreht sich mit
+			float sum = 0;
+			for (float[] e : w.yawDeltas) sum += e[1];
+			if (sum >= 300) {
+				w.yawDeltas.clear();
+				h.emote = 2;
+				h.emoteTicks = 0;
+				h.emoteYaw = h.getYRot();
+			}
+		}
+	}
+
+	private static void runEmote(BotEntity bot) {
+		bot.getNavigation().stop();
+		int t = bot.emoteTicks++;
+		if (bot.emote == 1) {
+			// 3x ducken, kurz nach dem Spieler
+			int phase = t - 6;
+			boolean down = phase >= 0 && (phase / 4) % 2 == 0;
+			bot.setPose(down ? net.minecraft.world.entity.Pose.CROUCHING : net.minecraft.world.entity.Pose.STANDING);
+			if (phase >= 24) {
+				bot.setPose(net.minecraft.world.entity.Pose.STANDING);
+				bot.emote = 0;
+			}
+		} else if (bot.emote == 2) {
+			int phase = t - 6;
+			if (phase < 0) return;
+			float yaw = bot.emoteYaw + 360F * Math.min(1F, phase / 16F);
+			bot.setYRot(yaw);
+			bot.setYBodyRot(yaw);
+			bot.setYHeadRot(yaw);
+			bot.yRotO = yaw;
+			if (phase >= 16) {
+				bot.emote = 0;
+				ServerPlayer w = watcherOf(bot);
+				if (w != null) bot.getLookControl().setLookAt(w, 30, 30);
+			}
+		} else {
+			bot.emote = 0;
 		}
 	}
 

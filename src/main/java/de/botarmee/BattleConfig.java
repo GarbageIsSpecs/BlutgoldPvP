@@ -100,6 +100,8 @@ public class BattleConfig {
 		public int edge = 50;
 		public int formation = 0;
 		public int variation = 15;
+		/** Ein Bot dieses Teams wird zum Helden mit besserer KI. */
+		public boolean hero = false;
 		public Piece[] kit = new Piece[6];
 		public List<Phase> sequence = new ArrayList<>();
 
@@ -129,6 +131,12 @@ public class BattleConfig {
 	public boolean winnerTitle = true;
 	public boolean dyeLeather = true;
 	public boolean useArena = true;
+	/** Menschlicher kämpfen: Bögen laufen, zögern, Schilde, Fehler. */
+	public boolean human = true;
+	/** -1 = nur zuschauen, sonst Team, in dem du selbst mitkämpfst. */
+	public int playerTeam = -1;
+	public boolean playerTeleport = true;
+	public boolean playerKit = true;
 	public int skinMode = 0;
 	public int arena = 0;
 	public int arenaSize = 1;
@@ -144,6 +152,7 @@ public class BattleConfig {
 		a.kit[3] = new Piece("minecraft:iron_boots");
 		a.kit[4] = new Piece("minecraft:iron_sword");
 		a.kit[5] = new Piece("minecraft:shield");
+		a.hero = true;
 		a.sequence.add(new Phase(ACT_HOLD, 3));
 		a.sequence.add(new Phase(ACT_MARCH, 6));
 		a.sequence.add(new Phase(ACT_ATTACK, 0));
@@ -179,6 +188,10 @@ public class BattleConfig {
 		m.put("winnerTitle", b(winnerTitle));
 		m.put("dyeLeather", b(dyeLeather));
 		m.put("useArena", b(useArena));
+		m.put("human", b(human));
+		m.put("playerTeam", String.valueOf(playerTeam));
+		m.put("playerTeleport", b(playerTeleport));
+		m.put("playerKit", b(playerKit));
 		m.put("skinMode", String.valueOf(skinMode));
 		m.put("arena", String.valueOf(arena));
 		m.put("arenaSize", String.valueOf(arenaSize));
@@ -193,6 +206,7 @@ public class BattleConfig {
 			m.put(p + "edge", String.valueOf(t.edge));
 			m.put(p + "formation", String.valueOf(t.formation));
 			m.put(p + "variation", String.valueOf(t.variation));
+			m.put(p + "hero", b(t.hero));
 			for (int s = 0; s < 6; s++) m.put(p + "kit" + s, t.kit[s].encode());
 			StringBuilder seq = new StringBuilder();
 			for (Phase ph : t.sequence) {
@@ -227,6 +241,10 @@ public class BattleConfig {
 		c.winnerTitle = bool(m, "winnerTitle", true);
 		c.dyeLeather = bool(m, "dyeLeather", true);
 		c.useArena = bool(m, "useArena", true);
+		c.human = bool(m, "human", true);
+		c.playerTeam = clamp(i(m, "playerTeam", -1), -1, n - 1);
+		c.playerTeleport = bool(m, "playerTeleport", true);
+		c.playerKit = bool(m, "playerKit", true);
 		c.skinMode = clamp(i(m, "skinMode", 0), 0, SKIN_MODES.length - 1);
 		c.arena = Math.max(0, i(m, "arena", 0));
 		c.arenaSize = clamp(i(m, "arenaSize", 1), 0, 2);
@@ -239,6 +257,7 @@ public class BattleConfig {
 			team.edge = clamp(i(m, p + "edge", 50), 0, 100);
 			team.formation = clamp(i(m, p + "formation", 0), 0, FORMATIONS.length - 1);
 			team.variation = clamp(i(m, p + "variation", 15), 0, 100);
+			team.hero = bool(m, p + "hero", false);
 			for (int s = 0; s < 6; s++) team.kit[s] = Piece.decode(m.get(p + "kit" + s));
 			String seq = m.getOrDefault(p + "seq", "2:0");
 			for (String part : seq.split(",")) {

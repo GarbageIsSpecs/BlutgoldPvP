@@ -32,6 +32,19 @@ public class BotEntity extends PathfinderMob {
 	int drawTicks;
 	int repathIn;
 	int idleFidget;
+	// ---- menschlicheres Verhalten
+	boolean hero;
+	float wobble;
+	int phase;
+	int hesitate;
+	int blockTicks;
+	int blockCooldown;
+	int backoff;
+	int strafeDir = 1;
+	// ---- Held: Emotes (1 = ducken, 2 = drehen)
+	int emote;
+	int emoteTicks;
+	float emoteYaw;
 
 	public BotEntity(EntityType<? extends BotEntity> type, Level level) {
 		super(type, level);
@@ -78,6 +91,7 @@ public class BotEntity extends PathfinderMob {
 
 	@Override
 	public boolean hurtServer(final ServerLevel level, final DamageSource source, float damage) {
+		if (Battle.isPlayerOnSide(source.getEntity(), this.side)) return false; // du triffst dein eigenes Team nicht
 		if (source.getEntity() instanceof BotEntity attacker) {
 			if (attacker.side != null && attacker.side == this.side) return false; // kein Friendly Fire
 			damage = Battle.modifyDamage(attacker, this, damage);

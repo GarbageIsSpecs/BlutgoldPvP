@@ -12,6 +12,7 @@ import net.minecraft.world.entity.MobCategory;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -40,6 +41,7 @@ public class BotArmee implements ModInitializer {
 				context.server().execute(() -> Battle.handle(context.player(), payload.action(), payload.data())));
 
 		ServerTickEvents.END_SERVER_TICK.register(Battle::tickServer);
+		ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> Battle.allowDamageToPlayer(entity, source));
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> Battle.onServerStopping());
 
 		CommandRegistrationCallback.EVENT.register((dispatcher, buildContext, selection) -> dispatcher.register(
