@@ -139,6 +139,10 @@ public final class Battle {
 				if (state == State.IDLE || state == State.OVER || !data.isEmpty() && state != State.READY) setup(player, BattleConfig.decode(data));
 				if (state == State.READY) startCountdown();
 			}
+			case "again" -> {
+				if (!data.isEmpty()) cfg = BattleConfig.decode(data); // aktuelle Menü-Einstellungen
+				playAgain(player);
+			}
 			case "pause" -> togglePause();
 			case "clear" -> {
 				clear();
@@ -163,6 +167,27 @@ public final class Battle {
 	}
 
 	// ------------------------------------------------------------------ Aufstellen
+
+	/** Gleiche Schlacht nochmal: neu aufstellen und direkt Countdown starten. */
+	public static void playAgain(ServerPlayer player) {
+		if (!player.isAlive()) {
+			msg(player, "Erst respawnen, dann nochmal spielen.");
+			return;
+		}
+		setup(player, cfg.copy());
+		startCountdown();
+	}
+
+	/** Volle Gesundheit, voller Hunger, keine Effekte, kein Feuer – zu Beginn jeder Runde. */
+	static void refresh(ServerPlayer p) {
+		if (!p.isAlive()) return;
+		p.removeAllEffects();
+		p.setHealth(p.getMaxHealth());
+		p.getFoodData().setFoodLevel(20);
+		p.getFoodData().setSaturation(5.0F);
+		p.clearFire();
+		p.setAirSupply(p.getMaxAirSupply());
+	}
 
 	static void setup(ServerPlayer player, BattleConfig config) {
 		clear();
@@ -278,6 +303,7 @@ public final class Battle {
 			}
 		}
 
+		for (ServerPlayer p : level.players()) refresh(p);
 		state = State.READY;
 		tick = 0;
 		winnerSide = null;
@@ -738,6 +764,11 @@ public final class Battle {
 				}
 			}
 			for (Side s : sides) for (BotEntity b : s.bots) b.getNavigation().stop();
+			// Knopf im Chat: gleiche Schlacht nochmal
+			Component again = Component.literal("§6[Bot-Armee] ").append(Component.literal("§a§l[▶ Nochmal spielen]")
+					.withStyle(st -> st.withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/botarmee nochmal"))
+							.withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Gleiche Einstellungen, neu aufstellen, Countdown, volle Leben")))));
+			for (ServerPlayer p : level.players()) p.sendSystemMessage(again);
 		}
 	}
 

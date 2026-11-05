@@ -188,6 +188,46 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 		});
 	}
 
+	/** Kurztest 3: Nochmal-spielen und volle Leben/Hunger pro Runde. */
+	private static void quick3(ClientGameTestContext ctx, TestSingleplayerContext sp, int[] home) {
+		sp.getServer().runCommand("difficulty normal");
+		ctx.runOnClient(mc -> {
+			BattleConfig c = ClientState.config();
+			c.useArena = false;
+			c.winner = -1;
+			c.countdown = true;
+			c.teams.get(0).count = 6;
+			c.teams.get(1).count = 6;
+			c.playerTeam = 0;
+			ClientState.send("start");
+		});
+		waitOver(ctx, sp, 3000, "Q3");
+		System.out.println("BOTARMEE-Q3 round1 state=" + ctx.computeOnClient(mc -> ClientState.state));
+		boolean chatButton = ctx.computeOnClient(mc -> mc.gui.getChat().getRecentChat().size() >= 0);
+		sp.getServer().runOnServer(server -> {
+			ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
+			pl.setHealth(5);
+			pl.getFoodData().setFoodLevel(3);
+		});
+		ctx.waitTicks(5);
+		ctx.takeScreenshot("q3_ende_mit_knopf");
+		ctx.runOnClient(mc -> ArmeeScreen.select(0, 0, 1));
+		ctx.setScreen(ArmeeScreen::new);
+		ctx.waitTicks(3);
+		ctx.takeScreenshot("q3_menu_nochmal");
+		ctx.setScreen(() -> null);
+		sp.getServer().runCommand("execute as @a run botarmee nochmal");
+		ctx.waitTicks(10);
+		String after = sp.getServer().computeOnServer(server -> {
+			ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
+			return "hp=" + pl.getHealth() + " food=" + pl.getFoodData().getFoodLevel();
+		});
+		ctx.waitTicks(10);
+		System.out.println("BOTARMEE-Q3 nach nochmal " + after + " state=" + ctx.computeOnClient(mc -> ClientState.state));
+		ctx.waitTicks(80);
+		System.out.println("BOTARMEE-Q3 spaeter state=" + ctx.computeOnClient(mc -> ClientState.state));
+	}
+
 	/** Kurztest 2: kein doppeltes Inventar, Arena-Schutz (TNT, Monster), Bogenschützen auf Podesten. */
 	private static void quick2(ClientGameTestContext ctx, TestSingleplayerContext sp, int[] home) {
 		sp.getServer().runCommand("difficulty normal");
@@ -429,7 +469,7 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> ClientState.send("forgetArena"));
 			if (previews) return;
 			if (System.getenv("BOTARMEE_QUICK") != null) {
-				quick2(ctx, sp, home);
+				quick3(ctx, sp, home);
 				return;
 			}
 

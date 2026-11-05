@@ -232,7 +232,14 @@ public class ArmeeScreen extends Screen {
 		String st = ClientState.state;
 		boolean fight = st.equals("FIGHT"), paused = st.equals("PAUSED");
 		x = bigButton(g, mx, my, x, y, h, "Aufstellen", PANEL_LIGHT, TEXT, () -> ClientState.send("setup")) + 4;
-		x = bigButton(g, mx, my, x, y, h, "▶ LOS!", 0xFF2F7D3B, TEXT, () -> ClientState.send("start")) + 4;
+		if (st.equals("OVER")) {
+			x = bigButton(g, mx, my, x, y, h, "↻ Nochmal", 0xFF2F7D3B, TEXT, () -> {
+				ClientState.send("again");
+				onClose(); // Menü zu, damit du den Countdown siehst
+			}) + 4;
+		} else {
+			x = bigButton(g, mx, my, x, y, h, "▶ LOS!", 0xFF2F7D3B, TEXT, () -> ClientState.send("start")) + 4;
+		}
 		x = bigButton(g, mx, my, x, y, h, paused ? "▶ Weiter" : "Ⅱ Pause", PANEL_LIGHT, fight || paused ? TEXT : MUTED, () -> ClientState.send("pause")) + 4;
 		x = bigButton(g, mx, my, x, y, h, "✖ Aufräumen", 0xFF6B2326, TEXT, () -> ClientState.send("clear")) + 8;
 

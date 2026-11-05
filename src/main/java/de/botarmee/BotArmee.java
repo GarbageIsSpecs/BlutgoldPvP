@@ -56,6 +56,11 @@ public class BotArmee implements ModInitializer {
 							ctx.getSource().sendSystemMessage(Component.literal("§6[Bot-Armee] §fAlle Bots entfernt."));
 							return 1;
 						}))
+						.then(Commands.literal("nochmal").executes(ctx -> {
+							var pl = ctx.getSource().getPlayer();
+							if (pl != null) Battle.playAgain(pl);
+							return 1;
+						}))
 						.then(Commands.literal("schutzaus").executes(ctx -> {
 							int n = ArenaProtection.clearAll();
 							ctx.getSource().sendSystemMessage(Component.literal("§6[Bot-Armee] §fSchutz für " + n + " Arena(en) entfernt."));
