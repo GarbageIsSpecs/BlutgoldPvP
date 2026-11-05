@@ -737,13 +737,15 @@ public final class Battle {
 			}
 			return;
 		}
-		if (reposition && ai < 2) {
-			if (ai == 0 && dist < 8) {
+		if (reposition) {
+			// nach einem Patt näher ran, damit die Pfeile auch treffen
+			double maxRange = bot.side != null && bot.side.forceAttack ? 10 : 22;
+			if (ai == 0 && dist < 8 && maxRange > 10) {
 				Vec3 away = bot.position().subtract(enemy.position()).multiply(1, 0, 1).normalize().scale(6).add(bot.position());
 				moveTo(bot, away, 1.1);
-			} else if (dist > 22) {
+			} else if (dist > maxRange) {
 				moveTo(bot, enemy.position(), 1.0);
-			} else {
+			} else if (ai < 2) {
 				bot.getNavigation().stop();
 			}
 		}

@@ -214,6 +214,15 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			});
 			sp.getServer().runCommand("tp @a " + (p[0] + 700) + " " + (p[1] + 1) + " " + p[2] + " 90 0");
 			sp.getConnection().waitForChunksRender();
+			ctx.runOnClient(mc -> ArmeeScreen.select(0, 0, 1));
+			ctx.setScreen(ArmeeScreen::new);
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("menu_warnung");
+			ctx.runOnClient(mc -> ArmeeScreen.select(3, 0, 1));
+			ctx.setScreen(ArmeeScreen::new);
+			ctx.waitTicks(5);
+			ctx.takeScreenshot("menu_arena_vorschau");
+			ctx.setScreen(() -> null);
 			ctx.runOnClient(mc -> ClientState.send("setup"));
 			ctx.waitTicks(40);
 			sp.getServer().runCommand("tp @a " + (p[0] + 700) + " " + (p[1] + 30) + " " + (p[2] + 2) + " 90 50");
