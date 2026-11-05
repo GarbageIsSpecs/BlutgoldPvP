@@ -768,7 +768,7 @@ public final class Battle {
 	private static void separate(BotEntity bot, Side s, ServerLevel lvl) {
 		if (ai == 2 && (bot.tickCount + bot.getId()) % 4 != 0) return;
 		if (ai == 1 && (bot.tickCount + bot.getId()) % 2 != 0) return;
-		double radius = 1.4;
+		double radius = 1.9;
 		List<BotEntity> near = lvl.getEntitiesOfClass(BotEntity.class, bot.getBoundingBox().inflate(radius, 0.5, radius),
 				e -> e != bot && e.side == s && e.isAlive());
 		if (near.isEmpty()) return;
@@ -788,7 +788,7 @@ public final class Battle {
 		}
 		double len = Math.sqrt(px * px + pz * pz);
 		if (len < 1e-4) return;
-		double strength = Math.min(0.07, 0.045 * len) * (ai == 2 ? 3 : ai == 1 ? 1.6 : 1);
+		double strength = Math.min(0.09, 0.06 * len) * (ai == 2 ? 3 : ai == 1 ? 1.6 : 1);
 		bot.addDeltaMovement(new Vec3(px / len * strength, 0, pz / len * strength));
 	}
 
@@ -887,13 +887,29 @@ public final class Battle {
 	/** Wie viele Bots greifen welchen Gegner gerade an (Entity-ID -> Anzahl). */
 	static final java.util.Map<Integer, Integer> attackers = new java.util.HashMap<>();
 
+	static final java.util.Map<Integer, List<BotEntity>> attackerList = new java.util.HashMap<>();
+
 	static void countAttackers() {
 		attackers.clear();
+		attackerList.clear();
 		for (Side s : sides) {
 			for (BotEntity b : s.bots) {
-				if (b.enemy != null && b.enemy.isAlive()) attackers.merge(b.enemy.getId(), 1, Integer::sum);
+				if (b.enemy != null && b.enemy.isAlive()) {
+					attackers.merge(b.enemy.getId(), 1, Integer::sum);
+					attackerList.computeIfAbsent(b.enemy.getId(), k -> new ArrayList<>()).add(b);
+				}
 			}
 		}
+	}
+
+	/** Wie viele Teamkollegen sind näher am Gegner als ich? (ab 2 wartet man im Ring statt zu drängeln) */
+	static int closerAttackers(BotEntity bot, LivingEntity enemy) {
+		List<BotEntity> list = attackerList.get(enemy.getId());
+		if (list == null) return 0;
+		double my = bot.distanceToSqr(enemy);
+		int c = 0;
+		for (BotEntity o : list) if (o != bot && o.isAlive() && o.distanceToSqr(enemy) < my) c++;
+		return c;
 	}
 
 	/**
@@ -902,7 +918,7 @@ public final class Battle {
 	 */
 	static double crowdFactor(BotEntity bot, LivingEntity e) {
 		int c = attackers.getOrDefault(e.getId(), 0) - (bot.enemy == e ? 1 : 0);
-		double f = c <= 0 ? 1.0 : c == 1 ? 0.75 : 2.5 + c;
+		double f = c <= 0 ? 1.0 : c == 1 ? 0.75 : 6 + 2 * c;
 		// Gegner oben auf der Tribüne/Mauer nicht hinterherklettern – die kommen von selbst runter
 		if (!elevated(bot) && elevated(e)) f *= 12;
 		return f;
@@ -1029,6 +1045,16 @@ public final class Battle {
 						double off = Math.sin((tick + bot.phase) * 0.07) * Math.min(3.5, dist * 0.22) * (hero ? 0.4 : bot.wobble);
 						Vec3 t = enemy.position().add(side.scale(off));
 						bot.getNavigation().moveTo(t.x, t.y, t.z, speed);
+						return;
+					}
+				}
+				if (dist <= 6 && human && !hero && closerAttackers(bot, enemy) >= 2) {
+					// schon zwei Kollegen dran: mit Abstand im Ring warten, statt von hinten zu drängeln
+					Vec3 from = bot.position().subtract(enemy.position()).multiply(1, 0, 1);
+					if (from.lengthSqr() > 1e-4) {
+						Vec3 t = enemy.position().add(rotateY(from.normalize(), 0.5 * bot.strafeDir).scale(3.4));
+						bot.getNavigation().moveTo(t.x, enemy.getY(), t.z, 0.9);
+						bot.retargetIn = Math.min(bot.retargetIn, 6); // bald einen freien Gegner suchen
 						return;
 					}
 				}
