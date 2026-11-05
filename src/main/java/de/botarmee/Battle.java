@@ -227,7 +227,9 @@ public final class Battle {
 			s.takenMult = 1 - 0.15 * edge;
 			s.speed = 0.3 * (1 + 0.06 * edge) * (cfg.speed / 100.0);
 
-			int count = Math.min(s.cfg.count, BattleConfig.MAX_TOTAL - total);
+			// Ausgleich: spielst du in einem Team mit Held, bekommt jedes Gegner-Team 2 Bots extra
+			int bonus = cfg.playerTeam >= 0 && cfg.playerTeam < cfg.teams.size() && cfg.teams.get(cfg.playerTeam).hero && s.index != cfg.playerTeam ? 2 : 0;
+			int count = Math.min(s.cfg.count + bonus, BattleConfig.MAX_TOTAL - total);
 			int archers = (int) Math.round(count * s.cfg.archers / 100.0);
 			s.startCount = count; // für die Formation
 			for (int i = 0; i < count; i++) {
@@ -263,6 +265,9 @@ public final class Battle {
 				player.onUpdateAbilities();
 			}
 			if (cfg.playerKit) equipPlayer(player, mine);
+			player.getInventory().add(new ItemStack(Items.GOLDEN_APPLE, 2));
+			player.getInventory().add(new ItemStack(Items.COOKED_BEEF, 8));
+			if (mine.cfg.hero && sides.size() > 1) msg(player, "Ausgleich: Du + Held in einem Team → jedes Gegner-Team hat 2 Bots extra.");
 			msg(player, "Du kämpfst für " + colorCode(mine.cfg.color) + mine.cfg.name + "§f! Tipp: /gamemode survival, damit du auch getroffen wirst.");
 			if (level.getDifficulty() == net.minecraft.world.Difficulty.PEACEFUL) {
 				msg(player, "§c⚠ Deine Welt ist auf Friedlich – da können Bots dir keinen Schaden machen. §f/difficulty normal");
@@ -608,6 +613,23 @@ public final class Battle {
 	}
 
 	/** Für die Fehlersuche: was machen die übrigen Bots gerade? */
+	/** Für den Test: wie eng stehen die Bots? [Anteil mit Nachbar < 0.7 Blöcke, mittlerer Abstand zum nächsten Teamkollegen] */
+	public static double[] clumpStats() {
+		int n = 0, tight = 0;
+		double sum = 0;
+		for (Side s : sides) {
+			for (BotEntity b : s.bots) {
+				double best = 99;
+				for (BotEntity o : s.bots) if (o != b) best = Math.min(best, o.distanceTo(b));
+				if (best > 50) continue;
+				n++;
+				sum += best;
+				if (best < 0.7) tight++;
+			}
+		}
+		return n == 0 ? new double[] {0, 0} : new double[] {tight / (double) n, sum / n};
+	}
+
 	public static BotEntity firstHero() {
 		return heroes.isEmpty() ? null : heroes.get(0);
 	}
@@ -742,7 +764,36 @@ public final class Battle {
 		}
 	}
 
+	/** Abstand zu Teamkollegen halten, damit kein großer Klumpen entsteht. */
+	private static void separate(BotEntity bot, Side s, ServerLevel lvl) {
+		if (ai == 2 && (bot.tickCount + bot.getId()) % 4 != 0) return;
+		if (ai == 1 && (bot.tickCount + bot.getId()) % 2 != 0) return;
+		double radius = 1.4;
+		List<BotEntity> near = lvl.getEntitiesOfClass(BotEntity.class, bot.getBoundingBox().inflate(radius, 0.5, radius),
+				e -> e != bot && e.side == s && e.isAlive());
+		if (near.isEmpty()) return;
+		double px = 0, pz = 0;
+		for (BotEntity o : near) {
+			double dx = bot.getX() - o.getX(), dz = bot.getZ() - o.getZ();
+			double d = Math.sqrt(dx * dx + dz * dz);
+			if (d >= radius) continue;
+			if (d < 1e-3) {
+				dx = bot.getRandom().nextDouble() - 0.5;
+				dz = bot.getRandom().nextDouble() - 0.5;
+				d = Math.sqrt(dx * dx + dz * dz) + 1e-3;
+			}
+			double w = (radius - d) / radius;
+			px += dx / d * w;
+			pz += dz / d * w;
+		}
+		double len = Math.sqrt(px * px + pz * pz);
+		if (len < 1e-4) return;
+		double strength = Math.min(0.07, 0.045 * len) * (ai == 2 ? 3 : ai == 1 ? 1.6 : 1);
+		bot.addDeltaMovement(new Vec3(px / len * strength, 0, pz / len * strength));
+	}
+
 	private static void fight(BotEntity bot, Side s, ServerLevel lvl) {
+		separate(bot, s, lvl);
 		// auf die Tribüne / Mauer geraten? -> wieder runter in die Arena
 		if (elevated(bot) && !bot.archer) {
 			LivingEntity near = bot.enemy;
@@ -758,7 +809,11 @@ public final class Battle {
 			if (ai > 0 && old != null && old.isAlive() && old.distanceToSqr(bot) < 36) {
 				// bleibt
 			} else {
-				bot.enemy = nearestEnemy(bot, s);
+				LivingEntity cand = nearestEnemy(bot, s);
+				// auf einen Gegner fokussiert bleiben – nur wechseln, wenn ein anderer deutlich näher ist
+				boolean keep = old != null && old.isAlive() && !old.isRemoved() && cand != null && cand != old
+						&& old.distanceToSqr(bot) <= cand.distanceToSqr(bot) * 2.0 + 9;
+				if (!keep) bot.enemy = cand;
 			}
 		}
 		LivingEntity enemy = bot.enemy;
@@ -974,6 +1029,17 @@ public final class Battle {
 						double off = Math.sin((tick + bot.phase) * 0.07) * Math.min(3.5, dist * 0.22) * (hero ? 0.4 : bot.wobble);
 						Vec3 t = enemy.position().add(side.scale(off));
 						bot.getNavigation().moveTo(t.x, t.y, t.z, speed);
+						return;
+					}
+				}
+				if (dist <= 6) {
+					// nicht in den Gegner hineinlaufen: jeder Angreifer nimmt eine eigene Seite ein
+					Vec3 from = bot.position().subtract(enemy.position()).multiply(1, 0, 1);
+					if (from.lengthSqr() > 1e-4) {
+						double off = (Math.floorMod(bot.getId() * 37, 5) - 2) * 0.75; // bis ±86°
+						Vec3 dirv = rotateY(from.normalize(), off);
+						Vec3 t = enemy.position().add(dirv.scale(1.3));
+						bot.getNavigation().moveTo(t.x, enemy.getY(), t.z, speed);
 						return;
 					}
 				}

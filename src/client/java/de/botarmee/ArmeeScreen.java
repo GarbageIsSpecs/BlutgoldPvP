@@ -289,6 +289,8 @@ public class ArmeeScreen extends Screen {
 				rows.add(new Toggle("Zu meinem Team teleportieren", () -> cfg.playerTeleport, v -> cfg.playerTeleport = v).visibleIf(() -> cfg.playerTeam == team));
 				rows.add(new Toggle("Team-Ausrüstung anziehen", () -> cfg.playerKit, v -> cfg.playerKit = v).visibleIf(() -> cfg.playerTeam == team));
 				rows.add(new Label("Für Treffer: /gamemode survival. Alte Rüstung kommt ins Inventar.").visibleIf(() -> cfg.playerTeam == team));
+				rows.add(new Label("Du bekommst 2 Goldäpfel und 8 Steak.").visibleIf(() -> cfg.playerTeam == team));
+				rows.add(new Label("§6Ausgleich: Mit Held im Team bekommen Gegner +2 Bots.").visibleIf(() -> cfg.playerTeam == team && t.hero));
 				rows.add(new Header("Stärke"));
 				rows.add(new Slider("Vorteil", 0, 100, 5, () -> t.edge, v -> t.edge = (int) v, ArmeeScreen::edgeText));
 				rows.add(new Label("50 = fair. Höher = etwas mehr Leben, Schaden, Tempo."));

@@ -171,6 +171,63 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 		sp.getConnection().waitForChunksRender();
 	}
 
+	/** Kurztest: Essen im Inventar, Ausgleich +2, Abstand der Bots im Kampf. */
+	private static void quick(ClientGameTestContext ctx, TestSingleplayerContext sp, int[] home) {
+		sp.getServer().runCommand("difficulty normal");
+		ctx.runOnClient(mc -> {
+			BattleConfig c = ClientState.config();
+			c.useArena = false;
+			c.winner = -1;
+			c.distance = 30;
+			c.teams.get(0).count = 30;
+			c.teams.get(0).hero = true;
+			c.teams.get(1).count = 30;
+			c.playerTeam = 0;
+			c.playerKit = true;
+			c.playerTeleport = true;
+			ClientState.send("setup");
+		});
+		ctx.waitTicks(40);
+		sp.getServer().runOnServer(server -> {
+			ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
+			int apples = 0, steak = 0;
+			for (int i = 0; i < pl.getInventory().getContainerSize(); i++) {
+				var st = pl.getInventory().getItem(i);
+				if (st.is(net.minecraft.world.item.Items.GOLDEN_APPLE)) apples += st.getCount();
+				if (st.is(net.minecraft.world.item.Items.COOKED_BEEF)) steak += st.getCount();
+			}
+			System.out.println("BOTARMEE-QUICK apples=" + apples + " steak=" + steak);
+		});
+		ctx.runOnClient(mc -> {
+			StringBuilder sb = new StringBuilder("BOTARMEE-QUICK teams");
+			for (ClientState.TeamStatus t : ClientState.teams) sb.append(" | ").append(t.name()).append(' ').append(t.start());
+			System.out.println(sb);
+		});
+		// Kamera von oben
+		double[] c = sp.getServer().computeOnServer(server -> {
+			ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
+			pl.getAbilities().flying = true;
+			pl.onUpdateAbilities();
+			return new double[] {pl.getX(), pl.getY(), pl.getZ()};
+		});
+		ctx.runOnClient(mc -> ClientState.send("start"));
+		ctx.waitTicks(20);
+		sp.getServer().runOnServer(server -> {
+			ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
+			pl.setInvulnerable(true);
+		});
+		for (int i = 0; i < 12; i++) {
+			ctx.waitTicks(40);
+			double[] st = sp.getServer().computeOnServer(server -> de.botarmee.Battle.clumpStats());
+			System.out.println("BOTARMEE-CLUMP t=" + (i * 2 + 1) + "s tight=" + String.format("%.2f", st[0]) + " avgNearest=" + String.format("%.2f", st[1]));
+			if (i == 4 || i == 8) {
+				sp.getServer().runCommand("tp @a " + c[0] + " " + (c[1] + 18) + " " + (c[2]) + " 0 70");
+				ctx.waitTicks(3);
+				ctx.takeScreenshot("quick_kampf_" + i);
+			}
+		}
+	}
+
 	private static void waitOver(ClientGameTestContext ctx, TestSingleplayerContext sp, int maxTicks, String label) {
 		for (int t = 0; t < maxTicks; t += 200) {
 			if (ctx.computeOnClient(mc -> ClientState.state.equals("OVER"))) return;
@@ -262,6 +319,10 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			sp.getConnection().waitForChunksRender();
 			ctx.runOnClient(mc -> ClientState.send("forgetArena"));
 			if (previews) return;
+			if (System.getenv("BOTARMEE_QUICK") != null) {
+				quick(ctx, sp, home);
+				return;
+			}
 
 			heldUndNamen(ctx, sp, home);
 
