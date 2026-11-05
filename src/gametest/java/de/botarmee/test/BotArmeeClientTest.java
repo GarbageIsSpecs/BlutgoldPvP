@@ -31,6 +31,9 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 		ctx.setScreen(ArmeeScreen::new);
 		ctx.waitTicks(3);
 		clickGui(ctx, ArmeeScreen.testNameBox[0], ArmeeScreen.testNameBox[1]);
+		ctx.runOnClient(mc -> System.out.println("BOTARMEE-NAMEDBG scale=" + mc.getWindow().getGuiScale() + " box=" + ArmeeScreen.testNameBox[0] + "," + ArmeeScreen.testNameBox[1]
+				+ " win=" + mc.getWindow().getScreenWidth() + "x" + mc.getWindow().getScreenHeight() + " gui=" + mc.getWindow().getGuiScaledWidth()
+				+ " focused=" + (mc.gui.screen() == null ? "none" : String.valueOf(mc.gui.screen().getFocused()))));
 		ctx.getInput().typeChars("A");
 		ctx.waitTicks(2);
 		clickGui(ctx, ArmeeScreen.testTeamRows[1][0], ArmeeScreen.testTeamRows[1][1]);
@@ -126,6 +129,8 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			if (i == 8) ctx.takeScreenshot("mitkaempfen");
 			if (ctx.computeOnClient(mc -> ClientState.state.equals("OVER"))) break;
 		}
+		sp.getServer().runOnServer(server -> System.out.println("BOTARMEE-PLAYERDBG targeted=" + de.botarmee.Battle.statPlayerTargeted + " hits=" + de.botarmee.Battle.statPlayerHits
+				+ " mode=" + server.getPlayerList().getPlayers().get(0).gameMode() + " invul=" + server.getPlayerList().getPlayers().get(0).isInvulnerable()));
 		System.out.println("BOTARMEE-PLAYER minHp=" + minHp + " state=" + ctx.computeOnClient(mc -> ClientState.state));
 		sp.getServer().runOnServer(server -> System.out.println("BOTARMEE-STATS blocks=" + de.botarmee.Battle.statBlocks + " heroBlocks=" + de.botarmee.Battle.statHeroBlocks
 				+ " missedBlocks=" + de.botarmee.Battle.statMissedBlocks + " misses=" + de.botarmee.Battle.statMisses));
@@ -146,6 +151,15 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			pl.onUpdateAbilities();
 		});
 		sp.getConnection().waitForChunksRender();
+	}
+
+	private static void waitOver(ClientGameTestContext ctx, TestSingleplayerContext sp, int maxTicks, String label) {
+		for (int t = 0; t < maxTicks; t += 200) {
+			if (ctx.computeOnClient(mc -> ClientState.state.equals("OVER"))) return;
+			ctx.waitTicks(200);
+		}
+		System.out.println("BOTARMEE-TIMEOUT " + label);
+		sp.getServer().runOnServer(server -> System.out.println("BOTARMEE-DEBUG " + de.botarmee.Battle.debug().replace("\n", "\nBOTARMEE-DEBUG ")));
 	}
 
 	private static void lookAtHero(ClientGameTestContext ctx, TestSingleplayerContext sp) {
@@ -286,7 +300,7 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			ctx.waitTicks(60);
 			log("shot");
 			ctx.takeScreenshot("kampf_nah");
-			ctx.waitFor(mc -> ClientState.state.equals("OVER"), 1800);
+			waitOver(ctx, sp, 1800, "B1");
 			ctx.waitTicks(20);
 			log("shot");
 			ctx.takeScreenshot("ende");
@@ -304,7 +318,7 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 				ClientState.send("start");
 			});
 			ctx.waitTicks(80);
-			ctx.waitFor(mc -> ClientState.state.equals("OVER"), 3000);
+			waitOver(ctx, sp, 3000, "B23");
 			ctx.takeScreenshot("ende_rigged");
 			ctx.runOnClient(mc -> {
 				StringBuilder sb = new StringBuilder("BOTARMEE-RESULT2 state=" + ClientState.state);
@@ -347,7 +361,7 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> ClientState.send("start"));
 			ctx.waitTicks(200);
 			ctx.takeScreenshot("kolosseum_kampf");
-			ctx.waitFor(mc -> ClientState.state.equals("OVER"), 3000);
+			waitOver(ctx, sp, 3000, "B23");
 			ctx.runOnClient(mc -> {
 				StringBuilder sb = new StringBuilder("BOTARMEE-RESULT3 state=" + ClientState.state);
 				for (ClientState.TeamStatus t : ClientState.teams) sb.append(" | ").append(t.name()).append(' ').append(t.alive()).append('/').append(t.start());

@@ -577,7 +577,7 @@ public final class Battle {
 	}
 
 	public static String debug() {
-		StringBuilder sb = new StringBuilder("state=" + state + " ai=" + ai + " tick=" + tick + " stallFor=" + (tick - lastChangeTick));
+		StringBuilder sb = new StringBuilder("state=" + state + " ai=" + ai + " tick=" + tick + " stallFor=" + (tick - lastChangeTick) + " joinedSide=" + joinedSide + " joinedAlive=" + joinedAlive());
 		for (Side s : sides) {
 			sb.append("\n").append(s.cfg.name).append(" alive=").append(s.alive()).append(" action=").append(s.action()).append(" force=").append(s.forceAttack);
 			int shown = 0;
@@ -589,7 +589,10 @@ public final class Battle {
 						.append(" noAi=").append(b.isNoAi()).append(" draw=").append(b.drawTicks).append(" cd=").append(b.attackCooldown)
 						.append(" retarget=").append(b.retargetIn).append(" hp=").append((int) b.getHealth())
 						.append(" ticking=").append(level.isPositionEntityTicking(b.blockPosition()))
-						.append(" move=").append(b.getMoveControl().hasWanted());
+						.append(" move=").append(b.getMoveControl().hasWanted())
+						.append(" blk=").append(b.blockTicks).append(" bcd=").append(b.blockCooldown).append(" hes=").append(b.hesitate)
+						.append(" emote=").append(b.emote).append(" using=").append(b.isUsingItem()).append(" hero=").append(b.hero)
+						.append(" nav=").append(b.getNavigation().isDone() ? "idle" : "moving");
 			}
 		}
 		return sb.toString();
@@ -805,7 +808,10 @@ public final class Battle {
 			ServerPlayer p = joinedPlayer();
 			if (!p.isCreative() && p.level() == bot.level()) {
 				double d = p.distanceToSqr(bot) * 0.9;
-				if (d < bestD) return p;
+				if (d < bestD) {
+					statPlayerTargeted++;
+					return p;
+				}
 			}
 		}
 		return best;
@@ -931,7 +937,10 @@ public final class Battle {
 		if (bot.attackCooldown <= 0 && bot.hasLineOfSight(enemy)) {
 			bot.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT, false);
 			boolean miss = human && !hero && bot.getRandom().nextFloat() < 0.12F; // daneben geschlagen
-			if (!miss) bot.doHurtTarget(lvl, enemy);
+			if (!miss) {
+				boolean hit = bot.doHurtTarget(lvl, enemy);
+				if (hit && enemy instanceof ServerPlayer) statPlayerHits++;
+			}
 			else statMisses++;
 			int base = hero ? 10 + bot.getRandom().nextInt(4) : 10 + bot.getRandom().nextInt(9);
 			bot.attackCooldown = Math.max(5, (int) Math.round(base / aggr));
@@ -942,7 +951,7 @@ public final class Battle {
 	}
 
 	/** Zähler für den automatischen Test. */
-	public static int statBlocks, statHeroBlocks, statMisses, statMissedBlocks;
+	public static int statBlocks, statHeroBlocks, statMisses, statMissedBlocks, statPlayerTargeted, statPlayerHits;
 
 	private static boolean hasShield(BotEntity bot) {
 		return bot.getOffhandItem().is(Items.SHIELD);
