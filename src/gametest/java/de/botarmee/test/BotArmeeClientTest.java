@@ -203,7 +203,6 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 		});
 		waitOver(ctx, sp, 3000, "Q3");
 		System.out.println("BOTARMEE-Q3 round1 state=" + ctx.computeOnClient(mc -> ClientState.state));
-		boolean chatButton = ctx.computeOnClient(mc -> mc.gui.getChat().getRecentChat().size() >= 0);
 		sp.getServer().runOnServer(server -> {
 			ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
 			pl.setHealth(5);
