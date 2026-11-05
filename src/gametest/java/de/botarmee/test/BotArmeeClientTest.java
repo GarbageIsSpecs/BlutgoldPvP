@@ -233,6 +233,7 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 					System.out.println(sb);
 				});
 				if (i == 2) ctx.takeScreenshot("riesig_spaeter");
+				if (i == 4 || i == 8) sp.getServer().runOnServer(server -> System.out.println("BOTARMEE-DEBUG " + de.botarmee.Battle.debug().replace("\n", "\nBOTARMEE-DEBUG ")));
 			}
 			ctx.runOnClient(mc -> {
 				StringBuilder sb = new StringBuilder("BOTARMEE-RESULT4 state=" + ClientState.state);

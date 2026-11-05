@@ -447,6 +447,26 @@ public final class Battle {
 		}
 	}
 
+	/** Für die Fehlersuche: was machen die übrigen Bots gerade? */
+	public static String debug() {
+		StringBuilder sb = new StringBuilder("state=" + state + " ai=" + ai + " tick=" + tick + " stallFor=" + (tick - lastChangeTick));
+		for (Side s : sides) {
+			sb.append("\n").append(s.cfg.name).append(" alive=").append(s.alive()).append(" action=").append(s.action()).append(" force=").append(s.forceAttack);
+			int shown = 0;
+			for (BotEntity b : s.bots) {
+				if (shown++ >= 6) break;
+				LivingEntity e = b.enemy;
+				sb.append("\n  ").append(b.archer ? "A" : "M").append(" pos=").append((int) b.getX()).append(',').append((int) b.getY()).append(',').append((int) b.getZ())
+						.append(" enemy=").append(e == null ? "null" : (e.isAlive() ? String.format("%.1f", b.distanceTo(e)) : "dead"))
+						.append(" noAi=").append(b.isNoAi()).append(" draw=").append(b.drawTicks).append(" cd=").append(b.attackCooldown)
+						.append(" retarget=").append(b.retargetIn).append(" hp=").append((int) b.getHealth())
+						.append(" ticking=").append(level.isPositionEntityTicking(b.blockPosition()))
+						.append(" move=").append(b.getMoveControl().hasWanted());
+			}
+		}
+		return sb.toString();
+	}
+
 	private static void checkVictory() {
 		Side last = null;
 		int aliveSides = 0;
