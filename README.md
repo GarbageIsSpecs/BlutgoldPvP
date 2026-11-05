@@ -4,7 +4,7 @@ Minecraft-Mod (Fabric, Minecraft 26.3) für Civilization-Videos: Armeen aus Fake
 
 ## Installieren (Lunar Client)
 
-1. Lade die Datei `botarmee-0.3.0.jar` herunter.
+1. Lade die Datei `botarmee-0.3.1.jar` herunter.
 2. Öffne den Lunar Client, wähle **Minecraft 26.3** und als Loader **Fabric**.
 3. Klicke auf das Ordner-Symbol bei Mods und lege die `.jar` in den Mods-Ordner.
 4. Die Mod braucht **Fabric API**. Im Lunar Client ist das normalerweise schon dabei. Falls Minecraft meckert, dass `fabric-api` fehlt: auf modrinth.com „Fabric API“ für 26.3 herunterladen und auch in den Mods-Ordner legen.
@@ -25,6 +25,8 @@ Minecraft-Mod (Fabric, Minecraft 26.3) für Civilization-Videos: Armeen aus Fake
 - **Menschlicher kämpfen** (Tab Ablauf): Bots laufen in Bögen auf den Gegner zu, zögern mal, weichen nach einem Schlag zurück, heben das Schild, wenn ein Gegner gleich zuschlägt, und hauen auch mal daneben. Sie greifen bevorzugt zu zweit einen Gegner an, statt alle auf einen Haufen.
 - **Held** (Tab Teams → „Held (bessere KI)“): steht vor seiner Armee, hat 1,5× Leben, blockt fast immer rechtzeitig, kontert und kreist um seine Gegner. Schau ihn an und **duck dich 2×** – er duckt sich mit. Schau ihn an und **dreh dich einmal im Kreis** – er dreht sich mit.
 - **Selbst mitkämpfen** (Tab Teams → „Ich kämpfe in diesem Team“): Du wirst zu deinem Team teleportiert, bekommst die Team-Ausrüstung (alte Rüstung kommt ins Inventar) und die Gegner greifen dich an. Wichtig: `/gamemode survival` und die Welt nicht auf Friedlich.
+- **Mitkämpfen-Extras (0.3.1)**: Du bekommst 2 Goldäpfel und 8 Steak. Ist in deinem Team auch ein Held, bekommt jedes Gegner-Team zum Ausgleich 2 Bots extra.
+- **Weniger Klumpen (0.3.1)**: Jeder Bot bleibt auf seinen Gegner fokussiert, höchstens zwei greifen denselben an, die anderen warten mit Abstand oder suchen sich einen freien Gegner. Teamkollegen halten Abstand zueinander.
 - **Schönere Arenen**: Feldlager mit Zelten, Fahnen in Teamfarbe auf den Burgen, Oasen mit Palmen, Iglus und Schneemänner, Netherfestungs-Ruinen, und das Kolosseum hat Sitzreihen, eine Kaiserloge und Eingänge mit Gittern.
 
 ## Tipps für Videos
