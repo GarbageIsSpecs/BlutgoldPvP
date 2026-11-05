@@ -214,7 +214,8 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 		ctx.waitTicks(20);
 		sp.getServer().runOnServer(server -> {
 			ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
-			pl.setInvulnerable(true);
+			pl.getAbilities().invulnerable = true; // Kamera soll nicht sterben
+			pl.onUpdateAbilities();
 		});
 		for (int i = 0; i < 12; i++) {
 			ctx.waitTicks(40);
