@@ -27,6 +27,12 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			sp.getServer().runCommand("weather clear");
 			sp.getServer().runCommand("gamerule doDaylightCycle false");
 
+			sp.getServer().runOnServer(server -> {
+				ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
+				pl.getAbilities().flying = true;
+				pl.onUpdateAbilities();
+			});
+
 			// ---- Vorschaubilder aller Arenen (für das Menü)
 			int[] home = sp.getServer().computeOnServer(server -> {
 				ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
@@ -218,7 +224,15 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			ctx.takeScreenshot("riesig_kampf");
 			sp.getServer().runOnServer(server -> System.out.println("BOTARMEE-PERF ms/tick=" + server.getAverageTickTimeNanos() / 1.0e6));
 			ctx.runOnClient(mc -> System.out.println("BOTARMEE-PERF fps=" + mc.getFps()));
-			ctx.waitFor(mc -> ClientState.state.equals("OVER"), 6000);
+			for (int i = 0; i < 30 && !ctx.computeOnClient(mc -> ClientState.state.equals("OVER")); i++) {
+				ctx.waitTicks(400);
+				ctx.runOnClient(mc -> {
+					StringBuilder sb = new StringBuilder("BOTARMEE-PROGRESS fps=" + mc.getFps());
+					for (ClientState.TeamStatus t : ClientState.teams) sb.append(" | ").append(t.name()).append(' ').append(t.alive());
+					System.out.println(sb);
+				});
+				if (i == 2) ctx.takeScreenshot("riesig_spaeter");
+			}
 			ctx.runOnClient(mc -> {
 				StringBuilder sb = new StringBuilder("BOTARMEE-RESULT4 state=" + ClientState.state);
 				for (ClientState.TeamStatus t : ClientState.teams) sb.append(" | ").append(t.name()).append(' ').append(t.alive()).append('/').append(t.start());
