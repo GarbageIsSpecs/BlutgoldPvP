@@ -175,10 +175,10 @@ public final class Battle {
 		Vec3 axis;
 		double half = cfg.distance / 2.0;
 		boolean round = false;
-		if (cfg.useArena && arena != null) {
+		boolean inArena = cfg.useArena && arena != null;
+		if (inArena) {
 			center = arena.center();
 			axis = arena.axis();
-			half = Math.min(half, arena.halfLength() * 0.8);
 			round = arena.round();
 		} else {
 			Vec3 look = player.getLookAngle();
@@ -195,7 +195,13 @@ public final class Battle {
 			Side s = new Side(i, cfg.teams.get(i));
 			double angle = n == 2 && !round ? (i == 0 ? Math.PI : 0) : Math.PI + i * (Math.PI * 2 / n);
 			Vec3 dir = rotateY(axis, angle);
-			s.start = center.add(dir.scale(half));
+			double h = half;
+			if (inArena) {
+				// die ganze Armee (inkl. hintere Reihen) muss in die Arena passen – sonst stehen Bots auf Mauern
+				s.startCount = s.cfg.count + (s.cfg.hero ? 1 : 0);
+				h = Math.max(5, Math.min(half, arena.halfLength() - formationDepth(s) - 1));
+			}
+			s.start = center.add(dir.scale(h));
 			s.anchor = s.start;
 			s.forward = center.subtract(s.start).multiply(1, 0, 1).normalize();
 			s.right = new Vec3(-s.forward.z, 0, s.forward.x);
@@ -258,6 +264,9 @@ public final class Battle {
 			}
 			if (cfg.playerKit) equipPlayer(player, mine);
 			msg(player, "Du kämpfst für " + colorCode(mine.cfg.color) + mine.cfg.name + "§f! Tipp: /gamemode survival, damit du auch getroffen wirst.");
+			if (level.getDifficulty() == net.minecraft.world.Difficulty.PEACEFUL) {
+				msg(player, "§c⚠ Deine Welt ist auf Friedlich – da können Bots dir keinen Schaden machen. §f/difficulty normal");
+			}
 		}
 
 		state = State.READY;
@@ -337,8 +346,36 @@ public final class Battle {
 		return bot;
 	}
 
+	/** Wie tief die Formation nach hinten reicht. */
+	static double formationDepth(Side s) {
+		int n = Math.max(1, s.startCount > 0 ? s.startCount : s.cfg.count);
+		double depth = 0;
+		for (int k = Math.max(0, n - 40); k < n; k++) depth = Math.max(depth, slotOffset(s, k)[1]);
+		return depth + 1;
+	}
+
 	/** Platz eines Bots in der Formation (vorne Nahkämpfer, hinten Bogenschützen). */
 	static Vec3 slotPos(Side s, int slot, Vec3 anchor) {
+		double[] o = slotOffset(s, slot);
+		Vec3 p = anchor.add(s.right.scale(o[0])).subtract(s.forward.scale(o[1]));
+		if (level == null) return p;
+		int y = groundY(Mth.floor(p.x), Mth.floor(p.z));
+		if (cfg.useArena && arena != null && y > arena.center().y + 1.5) {
+			// steht auf einer Mauer/Tribüne -> Richtung Mitte rücken, bis wieder Boden kommt
+			Vec3 toCenter = center.subtract(p).multiply(1, 0, 1);
+			double len = toCenter.length();
+			if (len > 0.5) {
+				Vec3 stepDir = toCenter.scale(1 / len);
+				for (int i = 0; i < 40 && y > arena.center().y + 1.5; i++) {
+					p = p.add(stepDir);
+					y = groundY(Mth.floor(p.x), Mth.floor(p.z));
+				}
+			}
+		}
+		return new Vec3(p.x, y, p.z);
+	}
+
+	static double[] slotOffset(Side s, int slot) {
 		int n = Math.max(1, s.startCount > 0 ? s.startCount : s.cfg.count);
 		double x, back;
 		switch (s.cfg.formation) {
@@ -370,9 +407,7 @@ public final class Battle {
 				back = (slot / cols) * 1.6;
 			}
 		}
-		Vec3 p = anchor.add(s.right.scale(x)).subtract(s.forward.scale(back));
-		int y = level == null ? (int) p.y : groundY(Mth.floor(p.x), Mth.floor(p.z));
-		return new Vec3(p.x, y, p.z);
+		return new double[] {x, back};
 	}
 
 	/** Der Held steht vor seiner Armee. */

@@ -72,7 +72,8 @@ public final class ArenaBuilder {
 		job = j;
 
 		Vec3 c = new Vec3(j.cx + 0.5, j.baseY + 1, j.cz + 0.5);
-		double half = type == 4 ? j.hz - 10 : type == 1 ? j.hx - 24 : j.hx - 6;
+		// wie weit die Armeen höchstens von der Mitte stehen dürfen (bis kurz vor Burgmauer / Tribüne)
+		double half = type == 4 ? j.hz - 11 : type == 1 ? j.hx - 22 : j.hx - 5;
 		return new Battle.ArenaInfo(c, new Vec3(1, 0, 0), half, type == 4);
 	}
 

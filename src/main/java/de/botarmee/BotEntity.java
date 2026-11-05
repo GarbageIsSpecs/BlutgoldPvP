@@ -106,6 +106,12 @@ public class BotEntity extends PathfinderMob {
 	}
 
 	@Override
+	public int getMaxFallDistance() {
+		// trauen sich auch mal von einer Mauer zu springen, statt oben festzustecken
+		return Math.max(super.getMaxFallDistance(), 6);
+	}
+
+	@Override
 	public boolean removeWhenFarAway(final double distSqr) {
 		return false;
 	}

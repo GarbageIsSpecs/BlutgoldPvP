@@ -16,9 +16,27 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 		System.out.println("BOTARMEE-TEST " + s);
 	}
 
+	static double clickScale = -1;
+
 	private static void clickGui(ClientGameTestContext ctx, int gx, int gy) {
-		double scale = ctx.computeOnClient(mc -> mc.getWindow().getGuiScale());
-		ctx.getInput().setCursorPos(gx * scale, gy * scale);
+		if (clickScale < 0) {
+			// herausfinden, ob setCursorPos GUI- oder Fenster-Koordinaten will (am Namensfeld)
+			for (double sc : new double[] {1, ctx.computeOnClient(mc -> (double) mc.getWindow().getGuiScale())}) {
+				ctx.getInput().setCursorPos(gx * sc, gy * sc);
+				ctx.waitTick();
+				ctx.getInput().pressMouse(0);
+				ctx.waitTicks(2);
+				boolean ok = ctx.computeOnClient(mc -> mc.gui.screen() != null && mc.gui.screen().getFocused() != null);
+				System.out.println("BOTARMEE-NAMEDBG try scale=" + sc + " focused=" + ok);
+				if (ok) {
+					clickScale = sc;
+					return;
+				}
+			}
+			clickScale = 1;
+			return;
+		}
+		ctx.getInput().setCursorPos(gx * clickScale, gy * clickScale);
 		ctx.waitTick();
 		ctx.getInput().pressMouse(0);
 		ctx.waitTicks(2);
@@ -190,6 +208,7 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			sp.getServer().runCommand("time set noon");
 			sp.getServer().runCommand("weather clear");
 			sp.getServer().runCommand("gamerule doDaylightCycle false");
+			sp.getServer().runCommand("difficulty normal");
 
 			sp.getServer().runOnServer(server -> {
 				ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
