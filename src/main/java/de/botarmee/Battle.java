@@ -760,8 +760,8 @@ public final class Battle {
 				if (last == null) {
 					title("§7Unentschieden!", "", 5, 70, 20);
 				} else {
-					title(colorCode(last.cfg.color) + "§l" + last.cfg.name.toUpperCase() + " GEWINNT!",
-							"§7" + last.alive() + " von " + last.startCount + " überlebt", 5, 80, 20);
+					title(colorCode(last.cfg.color) + "§l" + last.cfg.name.toUpperCase(),
+							"§fgewinnt! §7" + last.alive() + " von " + last.startCount + " überlebt", 5, 80, 20);
 				}
 			}
 			for (Side s : sides) for (BotEntity b : s.bots) b.getNavigation().stop();
