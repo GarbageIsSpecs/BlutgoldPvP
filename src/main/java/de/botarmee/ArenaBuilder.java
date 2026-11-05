@@ -22,12 +22,12 @@ public final class ArenaBuilder {
 
 	public static final String[] NAMES = {"Grasland", "Zwei Burgen", "Wüstenschlucht", "Schneefeld", "Kolosseum", "Nether-Ebene"};
 	public static final String[] DESCRIPTIONS = {
-			"Weite Wiese mit Bäumen und Felsen am Rand – der Klassiker.",
-			"Zwei Steinburgen mit Türmen an beiden Enden.",
-			"Sandiges Tal zwischen hohen Schluchtwänden mit Kakteen.",
-			"Verschneites Feld mit Tannen und gefrorenem Teich.",
-			"Runde Arena mit Tribünen – perfekt für 3 oder 4 Teams.",
-			"Netherrack, Basaltsäulen und Lavaseen."
+			"Weite Wiese mit Bäumen und Felsen.",
+			"Zwei Steinburgen mit Türmen.",
+			"Sandtal zwischen hohen Schluchtwänden.",
+			"Schnee, Tannen und gefrorene Teiche.",
+			"Runde Arena – ideal für 3–4 Teams.",
+			"Netherrack, Basalt und Lavaseen."
 	};
 	public static final String[] SIZES = {"Klein", "Mittel", "Groß"};
 	private static final int[][] DIM = {{45, 25}, {65, 35}, {90, 50}};

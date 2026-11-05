@@ -4,7 +4,7 @@ Minecraft-Mod (Fabric, Minecraft 26.3) für Civilization-Videos: Armeen aus Fake
 
 ## Installieren (Lunar Client)
 
-1. Lade die Datei `botarmee-0.1.0.jar` herunter.
+1. Lade die Datei `botarmee-0.2.0.jar` herunter.
 2. Öffne den Lunar Client, wähle **Minecraft 26.3** und als Loader **Fabric**.
 3. Klicke auf das Ordner-Symbol bei Mods und lege die `.jar` in den Mods-Ordner.
 4. Die Mod braucht **Fabric API**. Im Lunar Client ist das normalerweise schon dabei. Falls Minecraft meckert, dass `fabric-api` fehlt: auf modrinth.com „Fabric API“ für 26.3 herunterladen und auch in den Mods-Ordner legen.
@@ -30,6 +30,10 @@ Minecraft-Mod (Fabric, Minecraft 26.3) für Civilization-Videos: Armeen aus Fake
 
 ## Gut zu wissen
 
-- Maximal 150 Bots pro Team und 300 insgesamt, damit es flüssig bleibt.
+- Bis zu 500 Bots pro Team und 1000 insgesamt.
+- **Ab 300 Bots** erscheint ein orangenes ⚠: Die KI wird einfacher (kein Ausweichen, keine Crit-Sprünge), damit dein PC nicht laggt.
+- **Ab 600 Bots** wird das ⚠ rot (Sparmodus): Die Bots laufen geradeaus, suchen seltener neue Gegner und flankieren nicht. Rigging funktioniert trotzdem.
+- Tipp bei vielen Bots: Im Tab Extras „Namen über den Köpfen“ ausschalten. Das spart viel Leistung.
+- Das Schlachtfeld bleibt geladen, auch wenn du für Kamerafahrten weit wegfliegst.
 - Bots werden nicht mit der Welt gespeichert. Nach dem Verlassen sind sie weg.
 - Die Mod muss auch auf dem Server sein. Im Einzelspieler ist das automatisch so.
