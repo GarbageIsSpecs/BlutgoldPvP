@@ -101,7 +101,8 @@ public final class Battle {
 
 	static boolean joinedAlive() {
 		ServerPlayer p = joinedPlayer();
-		return p != null && p.isAlive() && !joinedOut && !p.isSpectator();
+		// im Kreativmodus kämpfst du nicht wirklich mit – sonst würde die Schlacht nie enden
+		return p != null && p.isAlive() && !joinedOut && !p.isSpectator() && !p.isCreative();
 	}
 
 	/** Ist der Spieler auf dieser Seite? (für Friendly Fire) */
