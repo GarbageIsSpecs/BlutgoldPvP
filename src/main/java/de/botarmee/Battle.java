@@ -743,6 +743,14 @@ public final class Battle {
 	}
 
 	private static void fight(BotEntity bot, Side s, ServerLevel lvl) {
+		// auf die Tribüne / Mauer geraten? -> wieder runter in die Arena
+		if (elevated(bot) && !bot.archer) {
+			LivingEntity near = bot.enemy;
+			if (near == null || near.distanceToSqr(bot) > 9) {
+				moveTo(bot, center, 1.1);
+				return;
+			}
+		}
 		if (--bot.retargetIn <= 0) {
 			bot.retargetIn = ai == 0 ? 8 + bot.getRandom().nextInt(6) : ai == 1 ? 18 + bot.getRandom().nextInt(12) : 35 + bot.getRandom().nextInt(25);
 			LivingEntity old = bot.enemy;
@@ -816,6 +824,11 @@ public final class Battle {
 		return center.add(s.right.scale(sign * width)).subtract(s.forward.scale(4));
 	}
 
+	/** Steht jemand in der Arena erhöht (Tribüne, Mauer)? */
+	static boolean elevated(LivingEntity e) {
+		return cfg.useArena && arena != null && e.getY() > arena.center().y + 2.5;
+	}
+
 	/** Wie viele Bots greifen welchen Gegner gerade an (Entity-ID -> Anzahl). */
 	static final java.util.Map<Integer, Integer> attackers = new java.util.HashMap<>();
 
@@ -834,9 +847,10 @@ public final class Battle {
 	 */
 	static double crowdFactor(BotEntity bot, LivingEntity e) {
 		int c = attackers.getOrDefault(e.getId(), 0) - (bot.enemy == e ? 1 : 0);
-		if (c <= 0) return 1.0;
-		if (c == 1) return 0.75;
-		return 2.5 + c;
+		double f = c <= 0 ? 1.0 : c == 1 ? 0.75 : 2.5 + c;
+		// Gegner oben auf der Tribüne/Mauer nicht hinterherklettern – die kommen von selbst runter
+		if (!elevated(bot) && elevated(e)) f *= 12;
+		return f;
 	}
 
 	private static LivingEntity nearestEnemy(BotEntity bot, Side own) {
@@ -999,7 +1013,10 @@ public final class Battle {
 			boolean miss = human && !hero && bot.getRandom().nextFloat() < 0.12F; // daneben geschlagen
 			if (!miss) {
 				boolean hit = bot.doHurtTarget(lvl, enemy);
-				if (hit && enemy instanceof ServerPlayer) statPlayerHits++;
+				if (enemy instanceof ServerPlayer pl) {
+					if (hit) statPlayerHits++;
+					else if (!pl.isBlocking()) warnPlayerNoDamage(pl);
+				}
 			}
 			else statMisses++;
 			int base = hero ? 10 + bot.getRandom().nextInt(4) : 10 + bot.getRandom().nextInt(9);
@@ -1012,6 +1029,19 @@ public final class Battle {
 
 	/** Zähler für den automatischen Test. */
 	public static int statBlocks, statHeroBlocks, statMisses, statMissedBlocks, statPlayerTargeted, statPlayerHits;
+
+	static int lastNoDamageWarn = -100000;
+
+	/** Sagt dir im Chat, warum Bots dir keinen Schaden machen (höchstens alle 20 s). */
+	static void warnPlayerNoDamage(ServerPlayer p) {
+		if (serverTicks - lastNoDamageWarn < 400) return;
+		lastNoDamageWarn = serverTicks;
+		String why;
+		if (level.getDifficulty() == net.minecraft.world.Difficulty.PEACEFUL) why = "Welt ist auf Friedlich → /difficulty normal";
+		else if (p.isCreative() || p.getAbilities().invulnerable) why = "du bist im Kreativmodus → /gamemode survival";
+		else why = "du bist gerade unverwundbar (z.B. kurz nach dem Teleport)";
+		msg(p, "§e⚠ Ein Bot hat dich getroffen, aber es macht keinen Schaden: §f" + why);
+	}
 
 	private static boolean hasShield(BotEntity bot) {
 		return bot.getOffhandItem().is(Items.SHIELD);
