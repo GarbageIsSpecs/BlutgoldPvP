@@ -554,6 +554,7 @@ public final class Battle {
 			case FIGHT -> {
 				tick++;
 				for (Side s : sides) advancePhase(s);
+				if (tick % 5 == 0) countAttackers();
 				if (tick % 10 == 0) rig();
 				antiStall();
 				checkVictory();
@@ -815,6 +816,29 @@ public final class Battle {
 		return center.add(s.right.scale(sign * width)).subtract(s.forward.scale(4));
 	}
 
+	/** Wie viele Bots greifen welchen Gegner gerade an (Entity-ID -> Anzahl). */
+	static final java.util.Map<Integer, Integer> attackers = new java.util.HashMap<>();
+
+	static void countAttackers() {
+		attackers.clear();
+		for (Side s : sides) {
+			for (BotEntity b : s.bots) {
+				if (b.enemy != null && b.enemy.isAlive()) attackers.merge(b.enemy.getId(), 1, Integer::sum);
+			}
+		}
+	}
+
+	/**
+	 * Lieber zu zweit auf einen Gegner als alle auf denselben: ein Gegner mit einem Angreifer ist
+	 * attraktiv (Paar), ab zwei Angreifern sucht man sich lieber einen anderen.
+	 */
+	static double crowdFactor(BotEntity bot, LivingEntity e) {
+		int c = attackers.getOrDefault(e.getId(), 0) - (bot.enemy == e ? 1 : 0);
+		if (c <= 0) return 1.0;
+		if (c == 1) return 0.75;
+		return 2.5 + c;
+	}
+
 	private static LivingEntity nearestEnemy(BotEntity bot, Side own) {
 		LivingEntity best = null;
 		double bestD = Double.MAX_VALUE;
@@ -832,6 +856,7 @@ public final class Battle {
 				double d = e.distanceToSqr(bot);
 				// etwas Zufall, damit nicht alle denselben Gegner jagen
 				d *= 0.85 + ((e.getId() * 31 + bot.getId() * 17) % 30) / 100.0;
+				d *= crowdFactor(bot, e);
 				if (d < bestD) {
 					bestD = d;
 					best = e;
@@ -842,7 +867,7 @@ public final class Battle {
 		if (joinedSide >= 0 && own.index != joinedSide && joinedAlive()) {
 			ServerPlayer p = joinedPlayer();
 			if (!p.isCreative() && p.level() == bot.level()) {
-				double d = p.distanceToSqr(bot) * 0.9;
+				double d = p.distanceToSqr(bot) * 0.9 * crowdFactor(bot, p);
 				if (d < bestD) {
 					statPlayerTargeted++;
 					return p;

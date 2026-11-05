@@ -4,7 +4,7 @@ Minecraft-Mod (Fabric, Minecraft 26.3) für Civilization-Videos: Armeen aus Fake
 
 ## Installieren (Lunar Client)
 
-1. Lade die Datei `botarmee-0.2.0.jar` herunter.
+1. Lade die Datei `botarmee-0.3.0.jar` herunter.
 2. Öffne den Lunar Client, wähle **Minecraft 26.3** und als Loader **Fabric**.
 3. Klicke auf das Ordner-Symbol bei Mods und lege die `.jar` in den Mods-Ordner.
 4. Die Mod braucht **Fabric API**. Im Lunar Client ist das normalerweise schon dabei. Falls Minecraft meckert, dass `fabric-api` fehlt: auf modrinth.com „Fabric API“ für 26.3 herunterladen und auch in den Mods-Ordner legen.
@@ -19,6 +19,13 @@ Minecraft-Mod (Fabric, Minecraft 26.3) für Civilization-Videos: Armeen aus Fake
 5. **Arena:** Schlachtfeld aussuchen, Größe wählen, „Arena hier bauen“ drücken. Es wird um dich herum gebaut.
 6. Unten auf **Aufstellen** drücken, dann auf **▶ LOS!**. Es kommt ein Countdown 3-2-1, danach kämpfen sie.
 7. **Aufräumen** entfernt alle Bots. **Pause** friert die Schlacht ein.
+
+## Neu in 0.3
+
+- **Menschlicher kämpfen** (Tab Ablauf): Bots laufen in Bögen auf den Gegner zu, zögern mal, weichen nach einem Schlag zurück, heben das Schild, wenn ein Gegner gleich zuschlägt, und hauen auch mal daneben. Sie greifen bevorzugt zu zweit einen Gegner an, statt alle auf einen Haufen.
+- **Held** (Tab Teams → „Held (bessere KI)“): steht vor seiner Armee, hat 1,5× Leben, blockt fast immer rechtzeitig, kontert und kreist um seine Gegner. Schau ihn an und **duck dich 2×** – er duckt sich mit. Schau ihn an und **dreh dich einmal im Kreis** – er dreht sich mit.
+- **Selbst mitkämpfen** (Tab Teams → „Ich kämpfe in diesem Team“): Du wirst zu deinem Team teleportiert, bekommst die Team-Ausrüstung (alte Rüstung kommt ins Inventar) und die Gegner greifen dich an. Wichtig: `/gamemode survival` und die Welt nicht auf Friedlich.
+- **Schönere Arenen**: Feldlager mit Zelten, Fahnen in Teamfarbe auf den Burgen, Oasen mit Palmen, Iglus und Schneemänner, Netherfestungs-Ruinen, und das Kolosseum hat Sitzreihen, eine Kaiserloge und Eingänge mit Gittern.
 
 ## Tipps für Videos
 

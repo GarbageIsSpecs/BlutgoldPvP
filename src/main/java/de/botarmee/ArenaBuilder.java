@@ -4,12 +4,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CrossCollisionBlock;
+import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -73,7 +76,14 @@ public final class ArenaBuilder {
 
 		Vec3 c = new Vec3(j.cx + 0.5, j.baseY + 1, j.cz + 0.5);
 		// wie weit die Armeen höchstens von der Mitte stehen dürfen (bis kurz vor Burgmauer / Tribüne)
-		double half = type == 4 ? j.hz - 11 : type == 1 ? j.hx - 22 : j.hx - 5;
+		double half = switch (type) {
+			case 1 -> j.hx - 22; // Burgmauern
+			case 2 -> j.hx - 14; // Oasen
+			case 3 -> j.hx - 11; // Iglus
+			case 4 -> j.hz - 11; // Tribüne
+			case 5 -> j.hx - 13;
+			default -> j.hx - 9; // Zelte
+		};
 		return new Battle.ArenaInfo(c, new Vec3(1, 0, 0), half, type == 4);
 	}
 
@@ -145,15 +155,38 @@ public final class ArenaBuilder {
 					fillBase(j, x, z, Blocks.STONE.defaultBlockState(), r.nextInt(6) == 0 ? Blocks.COARSE_DIRT.defaultBlockState() : Blocks.SAND.defaultBlockState());
 					clearAbove(j, x, z, 1);
 				} else if (d <= radius + 8) {
-					int step = (int) (d - radius);
+					int step = Math.min(7, (int) (d - radius));
 					int h = 3 + step;
-					fillBase(j, x, z, Blocks.STONE.defaultBlockState(), Blocks.STONE_BRICKS.defaultBlockState());
+					boolean gate = Math.abs(x) <= 1 || Math.abs(z) <= 1; // 4 Eingänge
+					fillBase(j, x, z, Blocks.STONE.defaultBlockState(), gate ? Blocks.POLISHED_ANDESITE.defaultBlockState() : Blocks.STONE_BRICKS.defaultBlockState());
+					Direction out = Math.abs(x) > Math.abs(z) ? (x > 0 ? Direction.EAST : Direction.WEST) : (z > 0 ? Direction.SOUTH : Direction.NORTH);
 					for (int y = 1; y <= h; y++) {
-						BlockState s = y == h ? Blocks.POLISHED_ANDESITE.defaultBlockState()
-								: r.nextInt(8) == 0 ? Blocks.CRACKED_STONE_BRICKS.defaultBlockState() : Blocks.STONE_BRICKS.defaultBlockState();
+						BlockState s;
+						if (gate && y <= 3) {
+							// Tunnel durch die Tribüne – innen mit einem Gitter verschlossen
+							s = step == 0 ? bars(out) : Blocks.AIR.defaultBlockState();
+						} else if (gate && y == 4 && step == 7) {
+							s = Blocks.CHISELED_STONE_BRICKS.defaultBlockState(); // Torbogen außen
+						} else if (y == h) {
+							s = step >= 1 && step <= 6 && step % 2 == 1
+									? Blocks.STONE_BRICK_STAIRS.defaultBlockState().setValue(StairBlock.FACING, out) // Sitzreihe
+									: Blocks.POLISHED_ANDESITE.defaultBlockState();
+						} else {
+							s = r.nextInt(8) == 0 ? Blocks.CRACKED_STONE_BRICKS.defaultBlockState()
+									: r.nextInt(10) == 0 ? Blocks.MOSSY_STONE_BRICKS.defaultBlockState() : Blocks.STONE_BRICKS.defaultBlockState();
+						}
 						set(j, x, y0 + y, z, s);
 					}
-					clearAbove(j, x, z, h + 1);
+					int top = h + 1;
+					if (step == 7) {
+						// Außenmauer mit Zinnen und Laternen
+						set(j, x, y0 + h + 1, z, Blocks.STONE_BRICKS.defaultBlockState());
+						boolean crenel = Math.floorMod(x + z, 2) == 0;
+						if (crenel) set(j, x, y0 + h + 2, z, Blocks.STONE_BRICK_WALL.defaultBlockState());
+						if (crenel && Math.floorMod(x * 7 + z * 13, 11) == 0) set(j, x, y0 + h + 3, z, Blocks.LANTERN.defaultBlockState());
+						top = h + (crenel ? 4 : 2);
+					}
+					clearAbove(j, x, z, top);
 				}
 			}
 			case 5 -> { // Nether
@@ -172,6 +205,13 @@ public final class ArenaBuilder {
 				else if (k == 14 && r.nextBoolean()) set(j, x, y0 + 1, z, Blocks.CORNFLOWER.defaultBlockState());
 			}
 		}
+	}
+
+	private static BlockState bars(Direction out) {
+		boolean alongX = out == Direction.NORTH || out == Direction.SOUTH; // Gitter quer zum Tunnel
+		return Blocks.IRON_BARS.defaultBlockState()
+				.setValue(CrossCollisionBlock.EAST, alongX).setValue(CrossCollisionBlock.WEST, alongX)
+				.setValue(CrossCollisionBlock.NORTH, !alongX).setValue(CrossCollisionBlock.SOUTH, !alongX);
 	}
 
 	private static void fillBase(Job j, int x, int z, BlockState under, BlockState top) {
@@ -204,10 +244,26 @@ public final class ArenaBuilder {
 				for (int i = 0; i < j.hx / 6; i++) {
 					rock(j, r.nextInt(j.hx * 2 - 10) - j.hx + 5, (j.hz - 2 - r.nextInt(10)) * (r.nextBoolean() ? 1 : -1));
 				}
+				// Feldlager an beiden Enden (Zelte in Teamfarbe, Lagerfeuer, Heu)
+				camp(j, -(j.hx - 5), Blocks.WOOL.red().defaultBlockState());
+				camp(j, j.hx - 5, Blocks.WOOL.blue().defaultBlockState());
+				// Trampelpfad und Blumenwiesen
+				for (int x = -j.hx + 2; x <= j.hx - 2; x++) {
+					for (int z = -1; z <= 1; z++) if (r.nextInt(3) != 0) put(j, x, 0, z, Blocks.DIRT_PATH.defaultBlockState());
+				}
+				for (int i = 0; i < 6; i++) flowers(j, r.nextInt(j.hx * 2 - 20) - j.hx + 10, (j.hz - 9 - r.nextInt(5)) * (r.nextBoolean() ? 1 : -1));
 			}
 			case 1 -> {
-				castle(j, -(j.hx - 11), 1);
-				castle(j, j.hx - 11, -1);
+				castle(j, -(j.hx - 11), 1, Blocks.WOOL.red().defaultBlockState());
+				castle(j, j.hx - 11, -1, Blocks.WOOL.blue().defaultBlockState());
+				// gepflasterte Straße zwischen den Toren
+				for (int x = -(j.hx - 19); x <= j.hx - 19; x++) {
+					for (int z = -2; z <= 2; z++) {
+						BlockState road = Math.abs(z) == 2 ? Blocks.COBBLESTONE.defaultBlockState()
+								: r.nextInt(4) == 0 ? Blocks.GRAVEL.defaultBlockState() : Blocks.DIRT_PATH.defaultBlockState();
+						if (Math.abs(z) < 2 || r.nextInt(3) != 0) put(j, x, 0, z, road);
+					}
+				}
 				for (int i = 0; i < j.hx / 5; i++) {
 					oakTree(j, r.nextInt(j.hx) - j.hx / 2, (j.hz - 3 - r.nextInt(5)) * (r.nextBoolean() ? 1 : -1));
 				}
@@ -221,6 +277,12 @@ public final class ArenaBuilder {
 					for (int y = 1; y <= h; y++) put(j, x, y, z, Blocks.CACTUS.defaultBlockState());
 				}
 				for (int i = 0; i < 3; i++) ruin(j, r.nextInt(j.hx) - j.hx / 2, (j.hz - 14) * (i % 2 == 0 ? 1 : -1));
+				// Oasen mit Palmen hinter beiden Armeen
+				oasis(j, -(j.hx - 8), 0);
+				oasis(j, j.hx - 8, 0);
+				// Fossilien und ein alter Brunnen
+				for (int i = 0; i < 4; i++) fossil(j, r.nextInt(j.hx * 2 - 20) - j.hx + 10, (j.hz - 12) * (i % 2 == 0 ? 1 : -1));
+				well(j, 0, -(j.hz - 13), Blocks.SANDSTONE.defaultBlockState(), Blocks.SMOOTH_SANDSTONE.defaultBlockState());
 			}
 			case 3 -> {
 				for (int i = 0; i < j.hx / 2; i++) {
@@ -230,6 +292,17 @@ public final class ArenaBuilder {
 				}
 				pond(j, j.hx / 3, j.hz / 2 + 2, 6);
 				pond(j, -j.hx / 2, -(j.hz / 2 + 1), 5);
+				// Iglus als Lager, Schneemänner, Laternen-Pfosten
+				igloo(j, -(j.hx - 6), 0);
+				igloo(j, j.hx - 6, 0);
+				for (int i = 0; i < 5; i++) snowman(j, r.nextInt(j.hx * 2 - 16) - j.hx + 8, (j.hz - 8 - r.nextInt(4)) * (r.nextBoolean() ? 1 : -1));
+				for (int x = -j.hx + 12; x <= j.hx - 12; x += 12) {
+					for (int sgn = -1; sgn <= 1; sgn += 2) {
+						put(j, x, 1, sgn * (j.hz - 6), Blocks.SPRUCE_FENCE.defaultBlockState());
+						put(j, x, 2, sgn * (j.hz - 6), Blocks.SPRUCE_FENCE.defaultBlockState());
+						put(j, x, 3, sgn * (j.hz - 6), Blocks.LANTERN.defaultBlockState());
+					}
+				}
 			}
 			case 4 -> {
 				int radius = j.hz - 8;
@@ -239,6 +312,30 @@ public final class ArenaBuilder {
 					int z = (int) Math.round(Math.sin(a) * (radius - 3));
 					for (int y = 1; y <= 6; y++) put(j, x, y, z, Blocks.CHISELED_STONE_BRICKS.defaultBlockState());
 					put(j, x, 7, z, Blocks.CAMPFIRE.defaultBlockState());
+				}
+				// Kaiserloge an der Nordseite
+				int lz = -(radius + 2);
+				for (int dx = -3; dx <= 3; dx++) {
+					for (int dz = 0; dz >= -3; dz--) {
+						for (int y = 1; y <= 8; y++) put(j, dx, y, lz + dz, y == 8 ? Blocks.POLISHED_GRANITE.defaultBlockState() : Blocks.STONE_BRICKS.defaultBlockState());
+						put(j, dx, 9, lz + dz, Math.abs(dx) <= 1 ? Blocks.CARPET.red().defaultBlockState() : Blocks.AIR.defaultBlockState());
+						put(j, dx, 10, lz + dz, Blocks.AIR.defaultBlockState());
+						put(j, dx, 11, lz + dz, Blocks.AIR.defaultBlockState());
+						put(j, dx, 12, lz + dz, Blocks.WOOL.red().defaultBlockState());
+					}
+				}
+				for (int dx = -3; dx <= 3; dx += 6) {
+					for (int y = 9; y <= 11; y++) put(j, dx, y, lz, Blocks.GOLD_BLOCK.defaultBlockState());
+				}
+				put(j, 0, 9, lz - 3, Blocks.QUARTZ_BLOCK.defaultBlockState()); // Thron
+				put(j, 0, 13, lz - 1, Blocks.GOLD_BLOCK.defaultBlockState());
+				// Laternen an den Toren
+				for (int i = 0; i < 4; i++) {
+					Direction d = Direction.from2DDataValue(i);
+					int gx = d.getStepX() * (radius + 1), gz = d.getStepZ() * (radius + 1);
+					int sx = d.getStepZ(), sz = d.getStepX(); // seitlich vom Tor
+					put(j, gx + 2 * sx, 5, gz + 2 * sz, Blocks.LANTERN.defaultBlockState());
+					put(j, gx - 2 * sx, 5, gz - 2 * sz, Blocks.LANTERN.defaultBlockState());
 				}
 			}
 			case 5 -> {
@@ -250,8 +347,19 @@ public final class ArenaBuilder {
 						put(j, x, y, z, Blocks.BASALT.defaultBlockState());
 						if (y < h - 2 && r.nextBoolean()) put(j, x + 1, y, z, Blocks.BASALT.defaultBlockState());
 					}
+					if (r.nextInt(3) == 0) put(j, x, h + 1, z, Blocks.GLOWSTONE.defaultBlockState());
 				}
 				for (int i = 0; i < 3; i++) lava(j, r.nextInt(j.hx) - j.hx / 2, (j.hz - 6) * (i % 2 == 0 ? 1 : -1), 4);
+				// Karmesin- und Wirrwald-Flecken, Seelenfeuer, Ruinen einer Netherfestung
+				netherPatch(j, -(j.hx - 10), 0, Blocks.CRIMSON_NYLIUM.defaultBlockState(), Blocks.CRIMSON_FUNGUS.defaultBlockState(), Blocks.NETHER_WART_BLOCK.defaultBlockState());
+				netherPatch(j, j.hx - 10, 0, Blocks.WARPED_NYLIUM.defaultBlockState(), Blocks.WARPED_FUNGUS.defaultBlockState(), Blocks.WARPED_WART_BLOCK.defaultBlockState());
+				for (int i = 0; i < 12; i++) {
+					int x = r.nextInt(j.hx * 2 - 10) - j.hx + 5, z = (j.hz - 4 - r.nextInt(8)) * (r.nextBoolean() ? 1 : -1);
+					put(j, x, 0, z, Blocks.SOUL_SOIL.defaultBlockState());
+					put(j, x, 1, z, Blocks.SOUL_FIRE.defaultBlockState());
+				}
+				fortressRuin(j, -j.hx / 3, -(j.hz - 5));
+				fortressRuin(j, j.hx / 3, j.hz - 5);
 			}
 			default -> {}
 		}
@@ -342,7 +450,7 @@ public final class ArenaBuilder {
 	}
 
 	/** Burg: Mauerring mit Zinnen, vier Ecktürmen und einem Tor zur Mitte hin. dir = Richtung zur Mitte (+1/-1). */
-	private static void castle(Job j, int cx, int dir) {
+	private static void castle(Job j, int cx, int dir, BlockState flag) {
 		int hw = 8, hd = 12, wallH = 6, towerH = 10;
 		BlockState brick = Blocks.STONE_BRICKS.defaultBlockState();
 		BlockState mossy = Blocks.MOSSY_STONE_BRICKS.defaultBlockState();
@@ -381,9 +489,187 @@ public final class ArenaBuilder {
 			}
 			put(j, cx + c[0], towerH + 1, c[1], Blocks.TORCH.defaultBlockState());
 		}
-		// Fahnen-Mast
-		for (int y = 1; y <= 9; y++) put(j, cx, y, 0, Blocks.SPRUCE_FENCE.defaultBlockState());
-		put(j, cx, 10, 0, Blocks.GLOWSTONE.defaultBlockState());
+		// Fahnen-Mast mit Fahne in Teamfarbe
+		for (int y = 1; y <= 12; y++) put(j, cx, y, -6, Blocks.SPRUCE_FENCE.defaultBlockState());
+		for (int y = 9; y <= 11; y++) {
+			for (int dz = 1; dz <= 4; dz++) put(j, cx, y, -6 + dz, flag);
+		}
+		// Fahnen auf den Türmen
+		for (int[] c : corners) {
+			put(j, cx + c[0], towerH + 2, c[1], Blocks.SPRUCE_FENCE.defaultBlockState());
+			put(j, cx + c[0], towerH + 3, c[1], flag);
+		}
+		// Laternen auf den Zinnen
+		for (int dz = -hd + 4; dz <= hd - 4; dz += 4) {
+			put(j, cx + hw * dir, wallH + 2, dz, Blocks.LANTERN.defaultBlockState());
+			put(j, cx - hw * dir, wallH + 2, dz, Blocks.LANTERN.defaultBlockState());
+		}
+		// Brunnen, Fässer und Heu im Hof
+		well(j, cx - 3 * dir, 4, Blocks.COBBLESTONE.defaultBlockState(), Blocks.SPRUCE_PLANKS.defaultBlockState());
+		for (int i = 0; i < 4; i++) {
+			put(j, cx - (hw - 1) * dir, 1, -hd + 2 + i, i % 2 == 0 ? Blocks.BARREL.defaultBlockState() : Blocks.HAY_BLOCK.defaultBlockState());
+			if (i < 2) put(j, cx - (hw - 1) * dir, 2, -hd + 2 + i, Blocks.HAY_BLOCK.defaultBlockState());
+		}
+		// Torbogen-Laternen
+		put(j, cx + hw * dir, 5, 3, Blocks.LANTERN.defaultBlockState());
+		put(j, cx + hw * dir, 5, -3, Blocks.LANTERN.defaultBlockState());
+	}
+
+	/** Feldlager: zwei Zelte in Teamfarbe, Lagerfeuer, Heuballen. */
+	private static void camp(Job j, int x, BlockState wool) {
+		BlockState white = Blocks.WOOL.white().defaultBlockState();
+		for (int t = -1; t <= 1; t += 2) {
+			int tz = t * 7;
+			for (int dx = -2; dx <= 2; dx++) {
+				boolean end = Math.abs(dx) == 2;
+				for (int w = -2; w <= 2; w++) {
+					int roof = 3 - Math.abs(w);
+					put(j, x + dx, roof, tz + w, end && Math.abs(w) < 2 ? white : wool);
+					for (int yy = 1; yy < roof; yy++) {
+						// Giebelwände weiß, mit Eingang in der Mitte
+						put(j, x + dx, yy, tz + w, end && w != 0 ? white : Blocks.AIR.defaultBlockState());
+					}
+				}
+			}
+			put(j, x, 4, tz, Blocks.SPRUCE_FENCE.defaultBlockState());
+		}
+		put(j, x, 1, 0, Blocks.CAMPFIRE.defaultBlockState());
+		for (int[] o : new int[][] {{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) put(j, x + o[0], 0, o[1], Blocks.COBBLESTONE.defaultBlockState());
+		put(j, x + 2, 1, 2, Blocks.HAY_BLOCK.defaultBlockState());
+		put(j, x + 2, 1, 3, Blocks.HAY_BLOCK.defaultBlockState());
+		put(j, x + 2, 2, 2, Blocks.HAY_BLOCK.defaultBlockState());
+		put(j, x - 2, 1, -2, Blocks.BARREL.defaultBlockState());
+	}
+
+	private static void flowers(Job j, int x, int z) {
+		Block[] f = {Blocks.POPPY, Blocks.DANDELION, Blocks.CORNFLOWER, Blocks.OXEYE_DAISY, Blocks.ALLIUM};
+		for (int i = 0; i < 14; i++) {
+			int dx = j.rnd.nextInt(7) - 3, dz = j.rnd.nextInt(5) - 2;
+			put(j, x + dx, 1, z + dz, f[j.rnd.nextInt(f.length)].defaultBlockState());
+		}
+	}
+
+	private static void well(Job j, int x, int z, BlockState rim, BlockState roof) {
+		for (int dx = -1; dx <= 1; dx++) {
+			for (int dz = -1; dz <= 1; dz++) {
+				if (dx == 0 && dz == 0) {
+					put(j, x, 0, z, Blocks.WATER.defaultBlockState());
+					put(j, x, -1, z, Blocks.WATER.defaultBlockState());
+				} else {
+					put(j, x + dx, 1, z + dz, rim);
+				}
+				put(j, x + dx, 4, z + dz, roof);
+			}
+		}
+		for (int[] c : new int[][] {{-1, -1}, {1, 1}}) {
+			put(j, x + c[0], 2, z + c[1], Blocks.OAK_FENCE.defaultBlockState());
+			put(j, x + c[0], 3, z + c[1], Blocks.OAK_FENCE.defaultBlockState());
+		}
+	}
+
+	private static void oasis(Job j, int x, int z) {
+		for (int dx = -5; dx <= 5; dx++) {
+			for (int dz = -5; dz <= 5; dz++) {
+				int d2 = dx * dx + dz * dz;
+				if (d2 <= 9) {
+					put(j, x + dx, -1, z + dz, Blocks.SAND.defaultBlockState());
+					put(j, x + dx, 0, z + dz, Blocks.WATER.defaultBlockState());
+				} else if (d2 <= 25) {
+					put(j, x + dx, 0, z + dz, Blocks.GRASS_BLOCK.defaultBlockState());
+					if (j.rnd.nextInt(3) == 0) put(j, x + dx, 1, z + dz, Blocks.SHORT_GRASS.defaultBlockState());
+				}
+			}
+		}
+		palm(j, x + 4, z + 3);
+		palm(j, x - 4, z - 3);
+		palm(j, x + 1, z - 5);
+	}
+
+	private static void palm(Job j, int x, int z) {
+		BlockState log = Blocks.JUNGLE_LOG.defaultBlockState();
+		for (int y = 1; y <= 3; y++) put(j, x, y, z, log);
+		for (int y = 4; y <= 6; y++) put(j, x + 1, y, z, log);
+		int tx = x + 1, ty = 7;
+		BlockState leaf = leaves(Blocks.JUNGLE_LEAVES);
+		put(j, tx, ty, z, leaf);
+		for (int[] d : new int[][] {{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+			put(j, tx + d[0], ty, z + d[1], leaf);
+			put(j, tx + 2 * d[0], ty, z + 2 * d[1], leaf);
+			put(j, tx + 3 * d[0], ty - 1, z + 3 * d[1], leaf);
+		}
+	}
+
+	private static void fossil(Job j, int x, int z) {
+		BlockState bone = Blocks.BONE_BLOCK.defaultBlockState();
+		for (int dx = 0; dx < 5; dx++) put(j, x + dx, 1, z, bone);
+		for (int dx = 0; dx < 5; dx += 2) {
+			put(j, x + dx, 1, z + 1, bone);
+			put(j, x + dx, 1, z - 1, bone);
+			put(j, x + dx, 2, z + 1, bone);
+			put(j, x + dx, 2, z - 1, bone);
+		}
+	}
+
+	private static void igloo(Job j, int x, int z) {
+		BlockState snow = Blocks.SNOW_BLOCK.defaultBlockState();
+		for (int dx = -4; dx <= 4; dx++) {
+			for (int dz = -4; dz <= 4; dz++) {
+				for (int y = 1; y <= 4; y++) {
+					double d = Math.sqrt(dx * dx + dz * dz + (y - 0.5) * (y - 0.5) * 1.6);
+					if (d <= 4.2 && d > 3.1) put(j, x + dx, y, z + dz, snow);
+					else if (d <= 3.1) put(j, x + dx, y, z + dz, Blocks.AIR.defaultBlockState());
+				}
+			}
+		}
+		int dir = x > 0 ? -1 : 1; // Eingang zur Mitte
+		for (int k = 3; k <= 5; k++) {
+			put(j, x + dir * k, 1, z, Blocks.AIR.defaultBlockState());
+			put(j, x + dir * k, 2, z, Blocks.AIR.defaultBlockState());
+			put(j, x + dir * k, 1, z + 1, snow);
+			put(j, x + dir * k, 1, z - 1, snow);
+			put(j, x + dir * k, 2, z + 1, snow);
+			put(j, x + dir * k, 2, z - 1, snow);
+			put(j, x + dir * k, 3, z, snow);
+		}
+		put(j, x, 1, z, Blocks.LANTERN.defaultBlockState());
+	}
+
+	private static void snowman(Job j, int x, int z) {
+		put(j, x, 1, z, Blocks.SNOW_BLOCK.defaultBlockState());
+		put(j, x, 2, z, Blocks.SNOW_BLOCK.defaultBlockState());
+		put(j, x, 3, z, Blocks.CARVED_PUMPKIN.defaultBlockState());
+	}
+
+	private static void netherPatch(Job j, int x, int z, BlockState nylium, BlockState fungus, BlockState wart) {
+		for (int dx = -7; dx <= 7; dx++) {
+			for (int dz = -9; dz <= 9; dz++) {
+				if (dx * dx + dz * dz * 0.6 > 49 || j.rnd.nextInt(5) == 0) continue;
+				put(j, x + dx, 0, z + dz, nylium);
+				if (j.rnd.nextInt(7) == 0) put(j, x + dx, 1, z + dz, fungus);
+			}
+		}
+		// ein großer Pilz
+		int fx = x + (x > 0 ? 2 : -2);
+		for (int y = 1; y <= 6; y++) put(j, fx, y, z + 5, Blocks.CRIMSON_STEM.defaultBlockState());
+		for (int dx = -2; dx <= 2; dx++) {
+			for (int dz = -2; dz <= 2; dz++) {
+				put(j, fx + dx, 7, z + 5 + dz, Math.floorMod(dx * 7 + dz * 3, 5) == 0 ? Blocks.SHROOMLIGHT.defaultBlockState() : wart);
+				if (Math.abs(dx) == 2 || Math.abs(dz) == 2) put(j, fx + dx, 6, z + 5 + dz, wart);
+			}
+		}
+	}
+
+	private static void fortressRuin(Job j, int x, int z) {
+		BlockState brick = Blocks.NETHER_BRICKS.defaultBlockState();
+		for (int dx = -6; dx <= 6; dx++) {
+			boolean pillar = Math.abs(dx) == 6 || dx == 0;
+			int h = pillar ? 6 + j.rnd.nextInt(2) : (j.rnd.nextInt(4) == 0 ? 0 : 5);
+			for (int y = 1; y <= h; y++) {
+				if (!pillar && y < 5) continue;
+				put(j, x + dx, y, z, j.rnd.nextInt(7) == 0 ? Blocks.CRACKED_NETHER_BRICKS.defaultBlockState() : brick);
+			}
+			if (!pillar && h > 0 && j.rnd.nextBoolean()) put(j, x + dx, 6, z, Blocks.NETHER_BRICK_FENCE.defaultBlockState());
+		}
 	}
 
 	private static int cz(int dz) {
