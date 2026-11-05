@@ -4,7 +4,7 @@ Minecraft-Mod (Fabric, Minecraft 26.3) für Civilization-Videos: Armeen aus Fake
 
 ## Installieren (Lunar Client)
 
-1. Lade die Datei `botarmee-0.3.3.jar` herunter.
+1. Lade die Datei `botarmee-0.4.0.jar` herunter.
 2. Öffne den Lunar Client, wähle **Minecraft 26.3** und als Loader **Fabric**.
 3. Klicke auf das Ordner-Symbol bei Mods und lege die `.jar` in den Mods-Ordner.
 4. Die Mod braucht **Fabric API**. Im Lunar Client ist das normalerweise schon dabei. Falls Minecraft meckert, dass `fabric-api` fehlt: auf modrinth.com „Fabric API“ für 26.3 herunterladen und auch in den Mods-Ordner legen.
@@ -29,6 +29,7 @@ Minecraft-Mod (Fabric, Minecraft 26.3) für Civilization-Videos: Armeen aus Fake
 - **Weniger Klumpen (0.3.1)**: Jeder Bot bleibt auf seinen Gegner fokussiert, höchstens zwei greifen denselben an, die anderen warten mit Abstand oder suchen sich einen freien Gegner. Teamkollegen halten Abstand zueinander.
 - **0.3.2**: Kein doppeltes Inventar mehr bei mehrmaligem Aufstellen. Gebaute Arenen sind geschützt: keine Explosionslöcher (Creeper, TNT), kein Abbauen im Überlebensmodus, Monster verschwinden aus der Arena. `/botarmee schutzaus` hebt den Schutz auf. Im Kolosseum gibt es vier Podeste mit Treppe, auf denen die Bogenschützen stehen.
 - **0.3.3**: Nach der Schlacht erscheint im Chat **[▶ Nochmal spielen]** (oder im Menü der Knopf „Nochmal“): gleiche Einstellungen, neu aufstellen, Countdown. Zu Beginn jeder Runde bekommst du volle Leben, vollen Hunger, Effekte und Feuer werden entfernt. Im Kreativmodus zählst du nicht mehr als Kämpfer (sonst endete die Schlacht nie).
+- **0.4.0 – Neue Arena „Dorf“**: Fachwerkhäuser mit Satteldächern, Fenstern und rauchenden Schornsteinen, Gemüsegärten, gepflasterte Straßen, Marktplatz mit Brunnen und bunten Marktständen, Kirche mit Glockenturm, Dorflinde, Laternen, Heuwagen und Brunnen. Gekämpft wird auf Hauptstraße und Marktplatz.
 - **Schönere Arenen**: Feldlager mit Zelten, Fahnen in Teamfarbe auf den Burgen, Oasen mit Palmen, Iglus und Schneemänner, Netherfestungs-Ruinen, und das Kolosseum hat Sitzreihen, eine Kaiserloge und Eingänge mit Gittern.
 
 ## Tipps für Videos
