@@ -57,8 +57,10 @@ public final class Battle {
 			this.cfg = cfg;
 		}
 
+		boolean forceAttack = false;
+
 		int action() {
-			if (cfg.sequence.isEmpty()) return BattleConfig.ACT_ATTACK;
+			if (forceAttack || cfg.sequence.isEmpty()) return BattleConfig.ACT_ATTACK;
 			return cfg.sequence.get(Math.min(phase, cfg.sequence.size() - 1)).action;
 		}
 
@@ -81,6 +83,8 @@ public final class Battle {
 	/** 0 = Episch, 1 = Vereinfacht, 2 = Sparmodus (bei sehr vielen Bots). */
 	static int ai = 0;
 	static int overTicks;
+	/** Gegen Patt-Situationen: wann zuletzt jemand gestorben ist. */
+	static int lastAliveTotal = -1, lastChangeTick = 0;
 	static int statusIn;
 	static Side winnerSide;
 
@@ -319,9 +323,12 @@ public final class Battle {
 	static void beginFight() {
 		state = State.FIGHT;
 		tick = 0;
+		lastAliveTotal = -1;
+		lastChangeTick = 0;
 		for (Side s : sides) {
 			s.phase = 0;
 			s.phaseTicks = 0;
+			s.forceAttack = false;
 		}
 		title("§c§lKAMPF!", "", 0, 20, 10);
 	}
@@ -389,6 +396,7 @@ public final class Battle {
 				tick++;
 				for (Side s : sides) advancePhase(s);
 				if (tick % 10 == 0) rig();
+				antiStall();
 				checkVictory();
 			}
 			case OVER -> overTicks++;
@@ -417,6 +425,25 @@ public final class Battle {
 			if (toCenter.length() > 6) s.anchor = s.anchor.add(s.forward.scale(0.06 * cfg.speed / 100.0));
 		} else if (a == BattleConfig.ACT_RETREAT) {
 			s.anchor = s.start;
+		}
+	}
+
+	/** Stirbt 15 Sekunden lang niemand, greifen alle an – sonst stehen z.B. zwei Bogenschützen-Reihen ewig herum. */
+	private static void antiStall() {
+		int total = 0;
+		for (Side s : sides) total += s.alive();
+		if (total != lastAliveTotal) {
+			lastAliveTotal = total;
+			lastChangeTick = tick;
+			return;
+		}
+		if (tick - lastChangeTick > 15 * 20) {
+			for (Side s : sides) {
+				if (!s.forceAttack) {
+					s.forceAttack = true;
+					for (BotEntity b : s.bots) b.repathIn = 0;
+				}
+			}
 		}
 	}
 
@@ -545,8 +572,14 @@ public final class Battle {
 		boolean engaged = enemy != null && dist < (bot.archer ? 3.5 : 5.0);
 		if (bot.archer) {
 			boolean mayShoot = action == BattleConfig.ACT_ATTACK || action == BattleConfig.ACT_VOLLEY || action == BattleConfig.ACT_FLANK;
-			if (enemy != null && mayShoot && dist < 48) {
-				ranged(bot, enemy, lvl, dist, action == BattleConfig.ACT_ATTACK || action == BattleConfig.ACT_FLANK);
+			boolean advance = action == BattleConfig.ACT_ATTACK || action == BattleConfig.ACT_FLANK;
+			if (enemy != null && mayShoot && dist < 40) {
+				ranged(bot, enemy, lvl, dist, advance);
+			} else if (enemy != null && advance) {
+				// Gegner zu weit weg zum Schießen: näher ranlaufen
+				stopDrawing(bot);
+				bot.getLookControl().setLookAt(enemy, 30, 30);
+				moveTo(bot, enemy.position(), 1.0);
 			} else if (engaged) {
 				melee(bot, enemy, lvl, dist, s);
 			} else {
@@ -694,9 +727,12 @@ public final class Battle {
 				bot.getNavigation().stop();
 			}
 		}
-		if (bot.attackCooldown <= 0 && bot.hasLineOfSight(enemy)) {
+		boolean los = bot.hasLineOfSight(enemy);
+		if (bot.attackCooldown <= 0 && los) {
 			bot.startUsingItem(InteractionHand.MAIN_HAND);
 			bot.drawTicks = crossbow ? 26 : 18 + bot.getRandom().nextInt(6);
+		} else if (!los && reposition) {
+			moveTo(bot, enemy.position(), 1.0); // keine freie Schussbahn: Position wechseln
 		}
 	}
 
