@@ -86,6 +86,12 @@ public class BotEntity extends PathfinderMob {
 	}
 
 	@Override
+	protected void pushEntities() {
+		// Gegenseitiges Schubsen ist bei hunderten Bots teuer – im Sparmodus seltener berechnen
+		if (Battle.ai == 0 || (Battle.ai == 1 && this.tickCount % 2 == 0) || this.tickCount % 4 == 0) super.pushEntities();
+	}
+
+	@Override
 	public boolean removeWhenFarAway(final double distSqr) {
 		return false;
 	}

@@ -25,6 +25,42 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			sp.getServer().runCommand("gamemode creative @a");
 			sp.getServer().runCommand("time set noon");
 			sp.getServer().runCommand("weather clear");
+			sp.getServer().runCommand("gamerule doDaylightCycle false");
+
+			// ---- Vorschaubilder aller Arenen (für das Menü)
+			int[] home = sp.getServer().computeOnServer(server -> {
+				ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
+				return new int[] {pl.getBlockX(), pl.getBlockY(), pl.getBlockZ()};
+			});
+			for (int a = 0; a < 6; a++) {
+				final int arena = a;
+				int ax = home[0] - 2000 - a * 400, az = home[2];
+				sp.getServer().runCommand("tp @a " + ax + " " + home[1] + " " + az + " 0 0");
+				sp.getConnection().waitForChunksRender();
+				ctx.runOnClient(mc -> {
+					BattleConfig c = ClientState.config();
+					c.arena = arena;
+					c.arenaSize = 1;
+					ClientState.send("arena");
+				});
+				ctx.waitTicks(130);
+				int camZ = arena == 4 ? 58 : 52;
+				sp.getServer().runCommand("tp @a " + ax + " " + (home[1] + (arena == 4 ? 34 : 26)) + " " + (az + camZ) + " 180 " + (arena == 4 ? 33 : 26));
+				sp.getConnection().waitForChunksRender();
+				ctx.waitTicks(20);
+				ctx.runOnClient(mc -> {
+					if (!mc.gui.hud.isHidden()) mc.gui.hud.toggle();
+				});
+				ctx.waitTicks(3);
+				log("shot");
+				ctx.takeScreenshot("preview_arena_" + arena);
+				ctx.runOnClient(mc -> {
+					if (mc.gui.hud.isHidden()) mc.gui.hud.toggle();
+				});
+			}
+			sp.getServer().runCommand("tp @a " + home[0] + " " + home[1] + " " + home[2] + " 0 0");
+			sp.getConnection().waitForChunksRender();
+			ctx.runOnClient(mc -> ClientState.send("forgetArena"));
 
 			ctx.runOnClient(mc -> {
 				BattleConfig c = ClientState.config();
@@ -144,6 +180,37 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			ctx.waitFor(mc -> ClientState.state.equals("OVER"), 3000);
 			ctx.runOnClient(mc -> {
 				StringBuilder sb = new StringBuilder("BOTARMEE-RESULT3 state=" + ClientState.state);
+				for (ClientState.TeamStatus t : ClientState.teams) sb.append(" | ").append(t.name()).append(' ').append(t.alive()).append('/').append(t.start());
+				System.out.println(sb);
+			});
+
+			// 4. Leistungstest: 700 Bots im Sparmodus
+			ctx.runOnClient(mc -> {
+				BattleConfig c = ClientState.config();
+				ClientState.send("clear");
+				while (c.teams.size() > 2) c.teams.remove(c.teams.size() - 1);
+				c.teams.get(0).count = 350;
+				c.teams.get(1).count = 350;
+				c.winner = 0;
+				c.closeness = 70;
+				c.useArena = false;
+			});
+			sp.getServer().runCommand("tp @a " + (p[0] + 700) + " " + (p[1] + 1) + " " + p[2] + " 90 0");
+			sp.getConnection().waitForChunksRender();
+			ctx.runOnClient(mc -> ClientState.send("setup"));
+			ctx.waitTicks(40);
+			sp.getServer().runCommand("tp @a " + (p[0] + 700) + " " + (p[1] + 30) + " " + (p[2] + 2) + " 90 50");
+			ctx.waitTicks(20);
+			log("shot");
+			ctx.takeScreenshot("riesig_aufgestellt");
+			ctx.runOnClient(mc -> ClientState.send("start"));
+			ctx.waitTicks(260);
+			ctx.takeScreenshot("riesig_kampf");
+			sp.getServer().runOnServer(server -> System.out.println("BOTARMEE-PERF ms/tick=" + server.getAverageTickTimeNanos() / 1.0e6));
+			ctx.runOnClient(mc -> System.out.println("BOTARMEE-PERF fps=" + mc.getFps()));
+			ctx.waitFor(mc -> ClientState.state.equals("OVER"), 6000);
+			ctx.runOnClient(mc -> {
+				StringBuilder sb = new StringBuilder("BOTARMEE-RESULT4 state=" + ClientState.state);
 				for (ClientState.TeamStatus t : ClientState.teams) sb.append(" | ").append(t.name()).append(' ').append(t.alive()).append('/').append(t.start());
 				System.out.println(sb);
 			});

@@ -11,8 +11,23 @@ import java.util.Map;
  */
 public class BattleConfig {
 	public static final int MAX_TEAMS = 4;
-	public static final int MAX_PER_TEAM = 150;
-	public static final int MAX_TOTAL = 300;
+	public static final int MAX_PER_TEAM = 500;
+	public static final int MAX_TOTAL = 1000;
+	/** Ab so vielen Bots wird die KI einfacher, damit es nicht laggt. */
+	public static final int EPIC_LIMIT = 300;
+	public static final int SIMPLE_LIMIT = 600;
+	public static final String[] AI_LEVELS = {"Episch", "Vereinfacht", "Sparmodus"};
+
+	/** 0 = volle KI, 1 = vereinfacht, 2 = Sparmodus. */
+	public static int aiLevel(int totalBots) {
+		return totalBots > SIMPLE_LIMIT ? 2 : totalBots > EPIC_LIMIT ? 1 : 0;
+	}
+
+	public int totalBots() {
+		int t = 0;
+		for (Team team : teams) t += team.count;
+		return Math.min(t, MAX_TOTAL);
+	}
 
 	/** Teamfarben: Anzeigename, RGB, Index in TeamColor (Scoreboard). */
 	public static final String[] COLOR_NAMES = {"Rot", "Blau", "Grün", "Gelb", "Lila", "Türkis", "Orange", "Weiß"};

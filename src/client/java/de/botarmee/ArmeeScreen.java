@@ -191,8 +191,17 @@ public class ArmeeScreen extends Screen {
 		int total = 0;
 		for (BattleConfig.Team t : cfg.teams) total += t.count;
 		int over = Math.max(0, total - BattleConfig.MAX_TOTAL);
-		g.text(font, "Gesamt: " + Math.min(total, BattleConfig.MAX_TOTAL), px + 8, py + ph - BOTTOM - 22, MUTED, false);
-		if (over > 0) g.text(font, "max " + BattleConfig.MAX_TOTAL + "!", px + 8, py + ph - BOTTOM - 11, DANGER, false);
+		int level = BattleConfig.aiLevel(Math.min(total, BattleConfig.MAX_TOTAL));
+		int gy = py + ph - BOTTOM - 22;
+		g.text(font, "Gesamt: " + Math.min(total, BattleConfig.MAX_TOTAL), px + 8, gy, level == 0 ? MUTED : warnColor(level), false);
+		if (level > 0) {
+			warnIcon(g, px + SIDEBAR - 16, gy - 2, level);
+			if (in(mx, my, px + SIDEBAR - 16, gy - 2, 11, 11)) {
+				g.setTooltipForNextFrame(font, font.split(Component.literal(warnText(level)), 200), mx, my);
+			}
+		}
+		if (over > 0) g.text(font, "max " + BattleConfig.MAX_TOTAL + "!", px + 8, gy + 11, DANGER, false);
+		else if (level > 0) g.text(font, "KI: " + BattleConfig.AI_LEVELS[level], px + 8, gy + 11, warnColor(level), false);
 	}
 
 	private int firstFreeColor() {
@@ -253,6 +262,7 @@ public class ArmeeScreen extends Screen {
 				rows.add(new NameRow());
 				rows.add(new Choice("Farbe", () -> BattleConfig.COLOR_NAMES, () -> t.color, v -> t.color = v).swatch(() -> t.rgb()));
 				rows.add(new Slider("Anzahl Bots", 1, BattleConfig.MAX_PER_TEAM, 1, () -> t.count, v -> t.count = (int) v, v -> String.valueOf((int) v)));
+				rows.add(new Warning());
 				rows.add(new Choice("Formation", () -> BattleConfig.FORMATIONS, () -> t.formation, v -> t.formation = v));
 				rows.add(new Header("Truppen"));
 				rows.add(new Slider("Bogenschützen", 0, 100, 5, () -> t.archers, v -> t.archers = (int) v, v -> (int) v + "%  (" + Math.round(t.count * v / 100) + ")"));
@@ -301,6 +311,7 @@ public class ArmeeScreen extends Screen {
 				rows.add(new Toggle("Sieger-Titel", () -> cfg.winnerTitle, v -> cfg.winnerTitle = v));
 				rows.add(new Toggle("Leder in Teamfarbe färben", () -> cfg.dyeLeather, v -> cfg.dyeLeather = v));
 				rows.add(new Label("Namen/Leuchten gelten ab dem nächsten Aufstellen."));
+				rows.add(new Label("Tipp bei vielen Bots: Namen aus = weniger Lag."));
 				rows.add(new Header("Skins"));
 				rows.add(new Choice("Skins", () -> BattleConfig.SKIN_MODES, () -> cfg.skinMode, v -> cfg.skinMode = v));
 				rows.add(new ButtonRow("Skin-Ordner öffnen", () -> {
@@ -616,7 +627,7 @@ public class ArmeeScreen extends Screen {
 		if (nameBox.visible && in(mx, my, nameBox.getX(), nameBox.getY(), nameBox.getWidth(), nameBox.getHeight())) {
 			return super.mouseClicked(event, doubleClick);
 		}
-		nameBox.setFocused(false);
+		if (getFocused() == nameBox) setFocused(null); // sonst bekommt das Feld beim 2. Mal keinen Fokus mehr
 		// Schieberegler zuerst (die liegen in den Zeilen)
 		if (tab != 1) {
 			int x = cx(), w = cw(), top = ctop(), bottom = cbottom();
@@ -720,6 +731,51 @@ public class ArmeeScreen extends Screen {
 		void draw(GuiGraphicsExtractor g, int x, int y, int w, boolean hover, int mx, int my) {
 			g.text(font, text.toUpperCase(), x, y + 4, ACCENT, false);
 			g.fill(x + font.width(text.toUpperCase()) + 6, y + 8, x + w, y + 9, 0x33E8B84A);
+		}
+	}
+
+	static int warnColor(int level) {
+		return level >= 2 ? DANGER : 0xFFF08A24;
+	}
+
+	static String warnText(int level) {
+		return level >= 2
+				? "Sparmodus (über " + BattleConfig.SIMPLE_LIMIT + " Bots): Dein PC könnte laggen! Die Bots laufen geradeaus, suchen Gegner seltener und flankieren nicht. Rigging funktioniert weiter."
+				: "Über " + BattleConfig.EPIC_LIMIT + " Bots: Dein PC könnte etwas laggen. Die KI wird einfacher: kein Ausweichen, keine Crit-Sprünge, Gegner werden seltener gesucht. Rigging funktioniert weiter.";
+	}
+
+	/** Gelbes/rotes Dreieck mit Ausrufezeichen. */
+	void warnIcon(GuiGraphicsExtractor g, int x, int y, int level) {
+		int c = warnColor(level);
+		for (int i = 0; i < 6; i++) g.fill(x + 5 - i, y + 1 + i * 2, x + 6 + i, y + 3 + i * 2, c);
+		g.fill(x + 5, y + 4, x + 6, y + 9, 0xFF1A1A1A);
+		g.fill(x + 5, y + 10, x + 6, y + 11, 0xFF1A1A1A);
+	}
+
+	/** Hinweis-Kasten, der nur bei sehr vielen Bots erscheint. */
+	private final class Warning extends Row {
+		@Override
+		boolean visible() {
+			return BattleConfig.aiLevel(cfg.totalBots()) > 0;
+		}
+
+		@Override
+		int height() {
+			return 12 + 10 * font.split(Component.literal(warnText(BattleConfig.aiLevel(cfg.totalBots()))), cw() - 30).size();
+		}
+
+		@Override
+		void draw(GuiGraphicsExtractor g, int x, int y, int w, boolean hover, int mx, int my) {
+			int level = BattleConfig.aiLevel(cfg.totalBots());
+			int c = warnColor(level);
+			g.fill(x, y, x + w, y + height(), level >= 2 ? 0xFF3A1A1C : 0xFF3A2A16);
+			g.fill(x, y, x + 2, y + height(), c);
+			warnIcon(g, x + 6, y + 5, level);
+			int ly = y + 6;
+			for (net.minecraft.util.FormattedCharSequence line : font.split(Component.literal(warnText(level)), w - 30)) {
+				g.text(font, line, x + 24, ly, 0xFFF1E6D0, false);
+				ly += 10;
+			}
 		}
 	}
 

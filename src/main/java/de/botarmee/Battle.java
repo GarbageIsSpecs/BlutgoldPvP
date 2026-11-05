@@ -78,6 +78,8 @@ public final class Battle {
 	static ArenaInfo arena;
 	static int countdown;
 	static int tick;
+	/** 0 = Episch, 1 = Vereinfacht, 2 = Sparmodus (bei sehr vielen Bots). */
+	static int ai = 0;
 	static int overTicks;
 	static int statusIn;
 	static Side winnerSide;
@@ -184,7 +186,11 @@ public final class Battle {
 		state = State.READY;
 		tick = 0;
 		winnerSide = null;
+		ai = BattleConfig.aiLevel(total);
 		msg(player, total + " Bots aufgestellt. Drück \"Los!\" im Menü (Taste B), um die Schlacht zu starten.");
+		if (ai > 0) {
+			msg(player, "§6⚠ KI-Modus: " + BattleConfig.AI_LEVELS[ai] + "§f – bei so vielen Bots kämpfen sie einfacher, damit es nicht laggt.");
+		}
 	}
 
 	private static BotEntity spawnBot(Side s, int slot, boolean archer, RandomSource random, double edge) {
@@ -482,8 +488,14 @@ public final class Battle {
 
 	private static void fight(BotEntity bot, Side s, ServerLevel lvl) {
 		if (--bot.retargetIn <= 0) {
-			bot.retargetIn = 8 + bot.getRandom().nextInt(6);
-			bot.enemy = nearestEnemy(bot, s);
+			bot.retargetIn = ai == 0 ? 8 + bot.getRandom().nextInt(6) : ai == 1 ? 18 + bot.getRandom().nextInt(12) : 35 + bot.getRandom().nextInt(25);
+			LivingEntity old = bot.enemy;
+			// im Sparmodus am alten Gegner dranbleiben, solange er nah ist
+			if (ai > 0 && old != null && old.isAlive() && old.distanceToSqr(bot) < 36) {
+				// bleibt
+			} else {
+				bot.enemy = nearestEnemy(bot, s);
+			}
 		}
 		LivingEntity enemy = bot.enemy;
 		if (enemy != null && (!enemy.isAlive() || enemy.isRemoved())) {
@@ -518,7 +530,7 @@ public final class Battle {
 			}
 			case BattleConfig.ACT_FLANK -> {
 				if (enemy == null) return;
-				if (bot.flanker && dist > 10 && !reachedFlank(bot, s)) {
+				if (ai < 2 && bot.flanker && dist > 10 && !reachedFlank(bot, s)) {
 					Vec3 wp = flankPoint(bot, s);
 					moveTo(bot, wp, 1.2);
 				} else {
@@ -545,9 +557,16 @@ public final class Battle {
 	private static LivingEntity nearestEnemy(BotEntity bot, Side own) {
 		BotEntity best = null;
 		double bestD = Double.MAX_VALUE;
+		int budget = ai == 0 ? Integer.MAX_VALUE : ai == 1 ? 60 : 24;
 		for (Side s : sides) {
-			if (s == own) continue;
-			for (BotEntity e : s.bots) {
+			if (s == own || s.bots.isEmpty()) continue;
+			int n = s.bots.size();
+			int checks = Math.min(n, budget);
+			// bei vielen Bots nur eine Stichprobe anschauen statt alle
+			int step = Math.max(1, n / checks);
+			int start = bot.getRandom().nextInt(n);
+			for (int k = 0; k < checks; k++) {
+				BotEntity e = s.bots.get((start + k * step) % n);
 				if (!e.isAlive()) continue;
 				double d = e.distanceToSqr(bot);
 				// etwas Zufall, damit nicht alle denselben Gegner jagen
@@ -582,8 +601,13 @@ public final class Battle {
 	}
 
 	private static void moveTo(BotEntity bot, Vec3 target, double speed) {
+		if (ai == 2) {
+			// Sparmodus: ohne Wegsuche einfach geradeaus laufen
+			bot.getMoveControl().setWantedPosition(target.x, target.y, target.z, speed);
+			return;
+		}
 		if (--bot.repathIn <= 0 || bot.getNavigation().isDone()) {
-			bot.repathIn = 10 + bot.getRandom().nextInt(6);
+			bot.repathIn = (ai == 0 ? 10 : 22) + bot.getRandom().nextInt(8);
 			bot.getNavigation().moveTo(target.x, target.y, target.z, speed);
 		}
 	}
@@ -593,15 +617,17 @@ public final class Battle {
 		bot.getLookControl().setLookAt(enemy, 30, 30);
 		double aggr = cfg.aggression / 100.0;
 		if (!bot.isWithinMeleeAttackRange(enemy)) {
-			if (--bot.repathIn <= 0 || bot.getNavigation().isDone()) {
-				bot.repathIn = dist < 8 ? 4 : 10;
+			if (ai == 2) {
+				bot.getMoveControl().setWantedPosition(enemy.getX(), enemy.getY(), enemy.getZ(), 1.25);
+			} else if (--bot.repathIn <= 0 || bot.getNavigation().isDone()) {
+				bot.repathIn = ai == 0 ? (dist < 8 ? 4 : 10) : (dist < 8 ? 8 : 20);
 				bot.getNavigation().moveTo(enemy, 1.25);
 			}
 			return;
 		}
 		// im Nahkampf: ein bisschen tänzeln
 		bot.getNavigation().stop();
-		if (bot.getRandom().nextInt(4) == 0) {
+		if (ai == 0 && bot.getRandom().nextInt(4) == 0) {
 			bot.getMoveControl().strafe(bot.getRandom().nextFloat() * 0.6F - 0.1F, bot.getRandom().nextFloat() * 1.2F - 0.6F);
 		}
 		if (bot.attackCooldown <= 0 && bot.hasLineOfSight(enemy)) {
@@ -609,7 +635,7 @@ public final class Battle {
 			bot.doHurtTarget(lvl, enemy);
 			int base = 10 + bot.getRandom().nextInt(9);
 			bot.attackCooldown = Math.max(5, (int) Math.round(base / aggr));
-			if (bot.onGround() && bot.getRandom().nextInt(4) == 0) bot.getJumpControl().jump(); // Crit-Sprung
+			if (ai == 0 && bot.onGround() && bot.getRandom().nextInt(4) == 0) bot.getJumpControl().jump(); // Crit-Sprung
 		}
 	}
 
@@ -626,8 +652,8 @@ public final class Battle {
 			}
 			return;
 		}
-		if (reposition) {
-			if (dist < 8) {
+		if (reposition && ai < 2) {
+			if (ai == 0 && dist < 8) {
 				Vec3 away = bot.position().subtract(enemy.position()).multiply(1, 0, 1).normalize().scale(6).add(bot.position());
 				moveTo(bot, away, 1.1);
 			} else if (dist > 22) {
