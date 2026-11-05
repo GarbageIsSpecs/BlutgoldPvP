@@ -7,6 +7,7 @@
 	"authors": ["Ibrahim"],
 	"license": "CC0-1.0",
 	"environment": "*",
+	"mixins": ["botarmee.mixins.json"],
 	"entrypoints": {
 		"main": ["de.botarmee.BotArmee"],
 		"client": ["de.botarmee.BotArmeeClient"]

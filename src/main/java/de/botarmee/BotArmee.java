@@ -14,6 +14,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -43,12 +44,21 @@ public class BotArmee implements ModInitializer {
 		ServerTickEvents.END_SERVER_TICK.register(Battle::tickServer);
 		ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> Battle.allowDamageToPlayer(entity, source));
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> Battle.onServerStopping());
+		ServerLifecycleEvents.SERVER_STARTED.register(ArenaProtection::load);
+		ServerTickEvents.END_SERVER_TICK.register(ArenaProtection::tick);
+		// Arenen im Überlebensmodus nicht abbaubar (im Kreativmodus darfst du weiterbauen)
+		PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> player.isCreative() || !ArenaProtection.isProtected(world, pos));
 
 		CommandRegistrationCallback.EVENT.register((dispatcher, buildContext, selection) -> dispatcher.register(
 				Commands.literal("botarmee")
 						.then(Commands.literal("clear").executes(ctx -> {
 							Battle.clear();
 							ctx.getSource().sendSystemMessage(Component.literal("§6[Bot-Armee] §fAlle Bots entfernt."));
+							return 1;
+						}))
+						.then(Commands.literal("schutzaus").executes(ctx -> {
+							int n = ArenaProtection.clearAll();
+							ctx.getSource().sendSystemMessage(Component.literal("§6[Bot-Armee] §fSchutz für " + n + " Arena(en) entfernt."));
 							return 1;
 						}))
 						.then(Commands.literal("pause").executes(ctx -> {

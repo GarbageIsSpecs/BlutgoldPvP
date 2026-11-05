@@ -73,6 +73,7 @@ public final class ArenaBuilder {
 		j.z = -j.hz;
 		decorate(j);
 		job = j;
+		ArenaProtection.add(level, j.cx - j.hx, j.baseY - 5, j.cz - j.hz, j.cx + j.hx, j.baseY + CLEAR + 6, j.cz + j.hz);
 
 		Vec3 c = new Vec3(j.cx + 0.5, j.baseY + 1, j.cz + 0.5);
 		// wie weit die Armeen höchstens von der Mitte stehen dürfen (bis kurz vor Burgmauer / Tribüne)
@@ -84,7 +85,11 @@ public final class ArenaBuilder {
 			case 5 -> j.hx - 13;
 			default -> j.hx - 9; // Zelte
 		};
-		return new Battle.ArenaInfo(c, new Vec3(1, 0, 0), half, type == 4);
+		List<Vec3> perches = new ArrayList<>();
+		if (type == 4) {
+			for (int[] pc : platformCenters(j)) perches.add(new Vec3(j.cx + pc[0] + 0.5, j.baseY + 4, j.cz + pc[1] + 0.5));
+		}
+		return new Battle.ArenaInfo(c, new Vec3(1, 0, 0), half, type == 4, perches);
 	}
 
 	public static void tick() {
@@ -207,6 +212,46 @@ public final class ArenaBuilder {
 		}
 	}
 
+	static int[][] platformCenters(Job j) {
+		int radius = j.hz - 8;
+		int d = (int) Math.round((radius - 7) / Math.sqrt(2));
+		return new int[][] {{d, d}, {-d, d}, {d, -d}, {-d, -d}};
+	}
+
+	/** 5x5-Podest, 3 Blöcke hoch, Geländer, Laternen, Treppe zur Mitte hin. */
+	private static void platform(Job j, int px, int pz) {
+		int sx = px > 0 ? 1 : -1;
+		BlockState brick = Blocks.STONE_BRICKS.defaultBlockState();
+		for (int dx = -2; dx <= 2; dx++) {
+			for (int dz = -2; dz <= 2; dz++) {
+				boolean edge = Math.abs(dx) == 2 || Math.abs(dz) == 2;
+				put(j, px + dx, 1, pz + dz, edge ? Blocks.CHISELED_STONE_BRICKS.defaultBlockState() : brick);
+				put(j, px + dx, 2, pz + dz, edge && (dx + dz) % 2 == 0 ? Blocks.CRACKED_STONE_BRICKS.defaultBlockState() : brick);
+				put(j, px + dx, 3, pz + dz, Blocks.POLISHED_ANDESITE.defaultBlockState());
+				// Geländer außer an der Treppenseite
+				boolean stairSide = dx == -2 * sx && Math.abs(dz) <= 1;
+				if (edge && !stairSide) put(j, px + dx, 4, pz + dz, Blocks.STONE_BRICK_WALL.defaultBlockState());
+			}
+		}
+		for (int[] c : new int[][] {{2, 2}, {2, -2}, {-2, 2}, {-2, -2}}) {
+			if (c[0] == -2 * sx) continue;
+			put(j, px + c[0], 5, pz + c[1], Blocks.LANTERN.defaultBlockState());
+		}
+		// Treppe zur Arena-Mitte
+		Direction up = sx > 0 ? Direction.EAST : Direction.WEST;
+		BlockState stair = Blocks.STONE_BRICK_STAIRS.defaultBlockState().setValue(StairBlock.FACING, up);
+		for (int dz = -1; dz <= 1; dz++) {
+			put(j, px - 3 * sx, 1, pz + dz, brick);
+			put(j, px - 3 * sx, 2, pz + dz, stair);
+			put(j, px - 4 * sx, 1, pz + dz, stair);
+		}
+		// Fahne in der Mitte
+		put(j, px + sx, 4, pz, Blocks.SPRUCE_FENCE.defaultBlockState());
+		put(j, px + sx, 5, pz, Blocks.SPRUCE_FENCE.defaultBlockState());
+		put(j, px + sx, 6, pz, Blocks.SPRUCE_FENCE.defaultBlockState());
+		put(j, px + sx, 7, pz, Blocks.CAMPFIRE.defaultBlockState());
+	}
+
 	private static BlockState bars(Direction out) {
 		boolean alongX = out == Direction.NORTH || out == Direction.SOUTH; // Gitter quer zum Tunnel
 		return Blocks.IRON_BARS.defaultBlockState()
@@ -306,13 +351,8 @@ public final class ArenaBuilder {
 			}
 			case 4 -> {
 				int radius = j.hz - 8;
-				for (int i = 0; i < 4; i++) {
-					double a = Math.PI / 4 + i * Math.PI / 2;
-					int x = (int) Math.round(Math.cos(a) * (radius - 3));
-					int z = (int) Math.round(Math.sin(a) * (radius - 3));
-					for (int y = 1; y <= 6; y++) put(j, x, y, z, Blocks.CHISELED_STONE_BRICKS.defaultBlockState());
-					put(j, x, 7, z, Blocks.CAMPFIRE.defaultBlockState());
-				}
+				// vier erhöhte Podeste mit Treppe – dort stehen die Bogenschützen
+				for (int[] pc : platformCenters(j)) platform(j, pc[0], pc[1]);
 				// Kaiserloge an der Nordseite
 				int lz = -(radius + 2);
 				for (int dx = -3; dx <= 3; dx++) {

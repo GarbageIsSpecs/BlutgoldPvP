@@ -34,6 +34,8 @@ public class BotEntity extends PathfinderMob {
 	int idleFidget;
 	// ---- menschlicheres Verhalten
 	boolean hero;
+	/** Platz auf einem Podest (nur Bogenschützen im Kolosseum). */
+	net.minecraft.world.phys.Vec3 perch;
 	float wobble;
 	int phase;
 	int hesitate;

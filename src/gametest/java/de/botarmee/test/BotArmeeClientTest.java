@@ -171,6 +171,114 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 		sp.getConnection().waitForChunksRender();
 	}
 
+	private static String countItems(TestSingleplayerContext sp) {
+		return sp.getServer().computeOnServer(server -> {
+			ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
+			int apples = 0, steak = 0, weapons = 0, chest = 0, total = 0;
+			for (int i = 0; i < pl.getInventory().getContainerSize(); i++) {
+				var st = pl.getInventory().getItem(i);
+				if (st.isEmpty()) continue;
+				total++;
+				if (st.is(net.minecraft.world.item.Items.GOLDEN_APPLE)) apples += st.getCount();
+				if (st.is(net.minecraft.world.item.Items.COOKED_BEEF)) steak += st.getCount();
+				if (st.is(net.minecraft.world.item.Items.IRON_SWORD)) weapons++;
+				if (st.is(net.minecraft.world.item.Items.IRON_CHESTPLATE)) chest++;
+			}
+			return "apples=" + apples + " steak=" + steak + " swords=" + weapons + " chestInInv=" + chest + " slotsUsed=" + total;
+		});
+	}
+
+	/** Kurztest 2: kein doppeltes Inventar, Arena-Schutz (TNT, Monster), Bogenschützen auf Podesten. */
+	private static void quick2(ClientGameTestContext ctx, TestSingleplayerContext sp, int[] home) {
+		sp.getServer().runCommand("difficulty normal");
+		// Kolosseum bauen
+		ctx.runOnClient(mc -> {
+			BattleConfig c = ClientState.config();
+			c.arena = 4;
+			c.arenaSize = 1;
+			c.useArena = true;
+			ClientState.send("arena");
+		});
+		ctx.waitTicks(160);
+		ctx.runOnClient(mc -> {
+			BattleConfig c = ClientState.config();
+			c.winner = -1;
+			c.teams.get(0).count = 30;
+			c.teams.get(0).archers = 40;
+			c.teams.get(0).hero = true;
+			c.teams.get(1).count = 30;
+			c.teams.get(1).archers = 40;
+			c.playerTeam = 0;
+			c.playerKit = true;
+			c.playerTeleport = true;
+			ClientState.send("setup");
+		});
+		ctx.waitTicks(30);
+		System.out.println("BOTARMEE-Q2 after1 " + countItems(sp));
+		ctx.runOnClient(mc -> ClientState.send("setup"));
+		ctx.waitTicks(30);
+		ctx.runOnClient(mc -> ClientState.send("setup"));
+		ctx.waitTicks(30);
+		System.out.println("BOTARMEE-Q2 after3 " + countItems(sp));
+
+		// Bogenschützen auf den Podesten?
+		ctx.waitTicks(20);
+		String perched = sp.getServer().computeOnServer(server -> {
+			int n = 0, up = 0;
+			for (var lvl : server.getAllLevels()) {
+				for (var e : lvl.getAllEntities()) {
+					if (e instanceof de.botarmee.BotEntity b && b.getMainHandItem().is(net.minecraft.world.item.Items.BOW)) {
+						n++;
+						if (b.getY() > home[1] + 2.5) up++;
+					}
+				}
+			}
+			return "archers=" + n + " onPlatform=" + up;
+		});
+		System.out.println("BOTARMEE-Q2 " + perched);
+
+		// TNT mitten in die Arena und Zombie spawnen
+		int floorY = home[1] - 1;
+		String before = sp.getServer().computeOnServer(server -> server.overworld().getBlockState(new net.minecraft.core.BlockPos(home[0] + 5, floorY, home[2] + 5)).toString());
+		sp.getServer().runCommand("summon tnt " + (home[0] + 5) + " " + (floorY + 1) + " " + (home[2] + 5) + " {fuse:1}");
+		sp.getServer().runCommand("summon creeper " + (home[0] - 5) + " " + (floorY + 1) + " " + (home[2] - 5) + " {Fuse:1,ignited:1b}");
+		sp.getServer().runCommand("summon zombie " + (home[0]) + " " + (floorY + 1) + " " + (home[2] + 8));
+		ctx.waitTicks(10);
+		int zombiesSoon = sp.getServer().computeOnServer(server -> server.overworld().getEntitiesOfClass(net.minecraft.world.entity.monster.zombie.Zombie.class,
+				new net.minecraft.world.phys.AABB(home[0] - 60, floorY - 5, home[2] - 60, home[0] + 60, floorY + 30, home[2] + 60)).size());
+		ctx.waitTicks(60);
+		String after = sp.getServer().computeOnServer(server -> server.overworld().getBlockState(new net.minecraft.core.BlockPos(home[0] + 5, floorY, home[2] + 5)).toString());
+		int holes = sp.getServer().computeOnServer(server -> {
+			int air = 0;
+			for (int dx = -4; dx <= 4; dx++) for (int dz = -4; dz <= 4; dz++) {
+				if (server.overworld().getBlockState(new net.minecraft.core.BlockPos(home[0] + 5 + dx, floorY, home[2] + 5 + dz)).isAir()) air++;
+				if (server.overworld().getBlockState(new net.minecraft.core.BlockPos(home[0] - 5 + dx, floorY, home[2] - 5 + dz)).isAir()) air++;
+			}
+			return air;
+		});
+		int zombiesLater = sp.getServer().computeOnServer(server -> server.overworld().getEntitiesOfClass(net.minecraft.world.entity.monster.zombie.Zombie.class,
+				new net.minecraft.world.phys.AABB(home[0] - 60, floorY - 5, home[2] - 60, home[0] + 60, floorY + 30, home[2] + 60)).size());
+		System.out.println("BOTARMEE-Q2 tnt before=" + before + " after=" + after + " airHoles=" + holes + " zombies 0.5s=" + zombiesSoon + " 3.5s=" + zombiesLater);
+
+		// Screenshot von den Podesten
+		sp.getServer().runOnServer(server -> {
+			ServerPlayer pl = server.getPlayerList().getPlayers().get(0);
+			pl.getAbilities().flying = true;
+			pl.getAbilities().invulnerable = true;
+			pl.onUpdateAbilities();
+		});
+		sp.getServer().runCommand("tp @a " + home[0] + " " + (home[1] + 34) + " " + (home[2] + 46) + " 180 44");
+		sp.getConnection().waitForChunksRender();
+		ctx.waitTicks(10);
+		ctx.takeScreenshot("q2_podeste");
+		ctx.runOnClient(mc -> ClientState.send("start"));
+		ctx.waitTicks(200);
+		ctx.takeScreenshot("q2_kampf");
+		sp.getServer().runCommand("tp @a " + (home[0] - 6) + " " + (home[1] + 7) + " " + (home[2] + 2) + " -130 25");
+		ctx.waitTicks(10);
+		ctx.takeScreenshot("q2_podest_nah");
+	}
+
 	/** Kurztest: Essen im Inventar, Ausgleich +2, Abstand der Bots im Kampf. */
 	private static void quick(ClientGameTestContext ctx, TestSingleplayerContext sp, int[] home) {
 		sp.getServer().runCommand("difficulty normal");
@@ -321,7 +429,7 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			ctx.runOnClient(mc -> ClientState.send("forgetArena"));
 			if (previews) return;
 			if (System.getenv("BOTARMEE_QUICK") != null) {
-				quick(ctx, sp, home);
+				quick2(ctx, sp, home);
 				return;
 			}
 

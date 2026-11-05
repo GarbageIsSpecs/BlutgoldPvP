@@ -70,7 +70,7 @@ public final class Battle {
 	}
 
 	/** Position und Ausrichtung einer gebauten Arena (Teams stellen sich entlang der Achse auf). */
-	public record ArenaInfo(Vec3 center, Vec3 axis, double halfLength, boolean round) {}
+	public record ArenaInfo(Vec3 center, Vec3 axis, double halfLength, boolean round, List<Vec3> perches) {}
 
 	static State state = State.IDLE;
 	static BattleConfig cfg = BattleConfig.defaults();
@@ -232,13 +232,16 @@ public final class Battle {
 			int count = Math.min(s.cfg.count + bonus, BattleConfig.MAX_TOTAL - total);
 			int archers = (int) Math.round(count * s.cfg.archers / 100.0);
 			s.startCount = count; // für die Formation
+			List<Vec3> spots = inArena ? perchSpots(s) : List.of();
+			int perchIdx = 0;
 			for (int i = 0; i < count; i++) {
 				boolean archer = i >= count - archers;
-				BotEntity bot = spawnBot(s, i, archer, random, edge, false);
+				Vec3 perch = archer && perchIdx < spots.size() ? spots.get(perchIdx++) : null;
+				BotEntity bot = spawnBot(s, i, archer, random, edge, false, perch);
 				if (bot != null) s.bots.add(bot);
 			}
 			if (s.cfg.hero) {
-				BotEntity hero = spawnBot(s, -1, false, random, edge, true);
+				BotEntity hero = spawnBot(s, -1, false, random, edge, true, null);
 				if (hero != null) {
 					s.bots.add(hero);
 					heroes.add(hero);
@@ -265,8 +268,9 @@ public final class Battle {
 				player.onUpdateAbilities();
 			}
 			if (cfg.playerKit) equipPlayer(player, mine);
-			player.getInventory().add(new ItemStack(Items.GOLDEN_APPLE, 2));
-			player.getInventory().add(new ItemStack(Items.COOKED_BEEF, 8));
+			else removeMarkedFood(player);
+			player.getInventory().add(mark(new ItemStack(Items.GOLDEN_APPLE, 2)));
+			player.getInventory().add(mark(new ItemStack(Items.COOKED_BEEF, 8)));
 			if (mine.cfg.hero && sides.size() > 1) msg(player, "Ausgleich: Du + Held in einem Team → jedes Gegner-Team hat 2 Bots extra.");
 			msg(player, "Du kämpfst für " + colorCode(mine.cfg.color) + mine.cfg.name + "§f! Tipp: /gamemode survival, damit du auch getroffen wirst.");
 			if (level.getDifficulty() == net.minecraft.world.Difficulty.PEACEFUL) {
@@ -284,14 +288,48 @@ public final class Battle {
 		}
 	}
 
-	/** Zieht dem Spieler die Team-Ausrüstung an; alte Rüstung kommt ins Inventar. */
+	/** Markierung für alles, was die Mod dem Spieler gibt – damit es beim nächsten Mal ersetzt statt verdoppelt wird. */
+	static ItemStack mark(ItemStack st) {
+		net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+		tag.putBoolean("botarmee", true);
+		st.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA, net.minecraft.world.item.component.CustomData.of(tag));
+		return st;
+	}
+
+	static boolean isMarked(ItemStack st) {
+		var cd = st.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+		return cd != null && cd.copyTag().getBooleanOr("botarmee", false);
+	}
+
+	/** Entfernt alle früher von der Mod gegebenen Sachen (Rüstung, Waffe, Essen). */
+	static void removeMarked(ServerPlayer player) {
+		var inv = player.getInventory();
+		for (int i = 0; i < inv.getContainerSize(); i++) {
+			if (isMarked(inv.getItem(i))) inv.setItem(i, ItemStack.EMPTY);
+		}
+		for (net.minecraft.world.entity.EquipmentSlot slot : Kits.SLOTS) {
+			if (isMarked(player.getItemBySlot(slot))) player.setItemSlot(slot, ItemStack.EMPTY);
+		}
+	}
+
+	static void removeMarkedFood(ServerPlayer player) {
+		var inv = player.getInventory();
+		for (int i = 0; i < inv.getContainerSize(); i++) {
+			ItemStack st = inv.getItem(i);
+			if (isMarked(st) && (st.is(Items.GOLDEN_APPLE) || st.is(Items.COOKED_BEEF))) inv.setItem(i, ItemStack.EMPTY);
+		}
+	}
+
+	/** Zieht dem Spieler die Team-Ausrüstung an; eigene (nicht von der Mod) Rüstung kommt ins Inventar. */
 	private static void equipPlayer(ServerPlayer player, Side s) {
+		removeMarked(player);
 		int dye = cfg.dyeLeather ? BattleConfig.COLOR_DYE[Math.floorMod(s.cfg.color, BattleConfig.COLOR_DYE.length)] : -1;
 		for (int i = 0; i < 6; i++) {
 			ItemStack stack = Kits.build(level.registryAccess(), s.cfg.kit[i], i, dye, 0);
 			if (stack.isEmpty()) continue;
+			mark(stack);
 			if (i == 4) {
-				player.getInventory().add(stack); // Waffe ins Inventar, nichts wird überschrieben
+				player.getInventory().add(stack); // Waffe ins Inventar
 				continue;
 			}
 			ItemStack old = player.getItemBySlot(Kits.SLOTS[i]);
@@ -300,8 +338,29 @@ public final class Battle {
 		}
 	}
 
-	private static BotEntity spawnBot(Side s, int slot, boolean archer, RandomSource random, double edge, boolean hero) {
+	/** Plätze auf den zwei Podesten, die am nächsten an der Armee sind (je 3x3). */
+	static List<Vec3> perchSpots(Side s) {
+		List<Vec3> out = new ArrayList<>();
+		if (arena == null || arena.perches() == null || arena.perches().isEmpty()) return out;
+		List<Vec3> ps = new ArrayList<>(arena.perches());
+		ps.sort(java.util.Comparator.comparingDouble(p -> p.distanceToSqr(s.start)));
+		int use = sides.size() <= 2 ? 2 : 1; // bei 4 Teams bekommt jedes Team ein Podest
+		for (int k = 0; k < Math.min(use, ps.size()); k++) {
+			Vec3 c = ps.get(k);
+			boolean taken = false;
+			for (Side o : sides) {
+				if (o == s) continue;
+				for (BotEntity b : o.bots) if (b.perch != null && b.perch.distanceToSqr(c) < 9) taken = true;
+			}
+			if (taken) continue;
+			for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) out.add(c.add(dx * 1.3, 0, dz * 1.3));
+		}
+		return out;
+	}
+
+	private static BotEntity spawnBot(Side s, int slot, boolean archer, RandomSource random, double edge, boolean hero, Vec3 perch) {
 		BotEntity bot = new BotEntity(BotArmee.BOT, level);
+		bot.perch = perch;
 		bot.side = s;
 		bot.slot = slot;
 		bot.hero = hero;
@@ -314,7 +373,7 @@ public final class Battle {
 		bot.setSkinSeed(random.nextInt(1 << 30));
 		bot.retargetIn = random.nextInt(10);
 
-		Vec3 p = hero ? heroPos(s) : slotPos(s, slot, s.anchor);
+		Vec3 p = perch != null ? perch : hero ? heroPos(s) : slotPos(s, slot, s.anchor);
 		float yaw = (float) (Mth.atan2(s.forward.z, s.forward.x) * Mth.RAD_TO_DEG) - 90.0F;
 		bot.snapTo(p.x, p.y, p.z, yaw, 0);
 		bot.setYHeadRot(yaw);
@@ -422,6 +481,7 @@ public final class Battle {
 	}
 
 	static Vec3 homePos(BotEntity bot, Side s) {
+		if (bot.perch != null && !s.forceAttack) return bot.perch;
 		return bot.hero ? heroPos(s) : slotPos(s, bot.slot, s.anchor);
 	}
 
@@ -833,7 +893,12 @@ public final class Battle {
 		if (bot.archer) {
 			boolean mayShoot = action == BattleConfig.ACT_ATTACK || action == BattleConfig.ACT_VOLLEY || action == BattleConfig.ACT_FLANK;
 			boolean advance = action == BattleConfig.ACT_ATTACK || action == BattleConfig.ACT_FLANK;
-			if (enemy != null && mayShoot && dist < 40) {
+			boolean perchedNow = bot.perch != null && !s.forceAttack;
+			if (perchedNow && bot.position().distanceToSqr(bot.perch) > 2.5 && (enemy == null || dist > 4)) {
+				// zurück aufs Podest
+				stopDrawing(bot);
+				moveTo(bot, bot.perch, 1.1);
+			} else if (enemy != null && mayShoot && dist < (perchedNow ? 48 : 40)) {
 				ranged(bot, enemy, lvl, dist, advance);
 			} else if (enemy != null && advance) {
 				// Gegner zu weit weg zum Schießen: näher ranlaufen
@@ -1266,7 +1331,8 @@ public final class Battle {
 		}
 		if (reposition) {
 			// nach einem Patt näher ran, damit die Pfeile auch treffen
-			double maxRange = bot.side != null && bot.side.forceAttack ? 10 : 22;
+			boolean perched = bot.perch != null && bot.side != null && !bot.side.forceAttack;
+			double maxRange = bot.side != null && bot.side.forceAttack ? 10 : perched ? 45 : 22;
 			if (ai == 0 && dist < 8 && maxRange > 10) {
 				Vec3 away = bot.position().subtract(enemy.position()).multiply(1, 0, 1).normalize().scale(6).add(bot.position());
 				moveTo(bot, away, 1.1);
