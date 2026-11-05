@@ -38,6 +38,11 @@ jobs:
         with:
           name: BotArmee-Mod
           path: build/libs/
+      - name: jar branch
+        run: |
+          mkdir -p /tmp/j && cp build/libs/botarmee-*[0-9].jar /tmp/j/ && cd /tmp/j && git init -q && git checkout -q -b probe-jar && git add -A
+          git -c user.name=ci -c user.email=ci@x commit -qm jar
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" probe-jar
       - name: client test (screenshots)
         if: ${{ hashFiles('test.flag') != '' }}
         continue-on-error: true
