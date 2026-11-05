@@ -44,6 +44,7 @@ jobs:
         timeout-minutes: 40
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q xvfb mesa-utils libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers > /dev/null
+          if [ -f preview.flag ]; then export BOTARMEE_PREVIEW_ONLY=1; fi
           export LIBGL_ALWAYS_SOFTWARE=1 SDL_VIDEODRIVER=x11 MESA_GL_VERSION_OVERRIDE=4.5
           (timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24 +extension GLX +render -noreset" ./gradlew runClientGameTest --no-configuration-cache 2>&1 || echo "TEST FAILED/TIMEOUT") | tee /tmp/test.log | grep --line-buffered -E "BOTARMEE|ERROR|Exception|FAIL|OpenGL|GL_|Backend" | head -200
           mkdir -p /tmp/s && cd /tmp/s && git init -q && git checkout -q -b probe-shots

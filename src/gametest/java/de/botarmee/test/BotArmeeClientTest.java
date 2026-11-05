@@ -59,7 +59,7 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 					ClientState.send("setup");
 				});
 				ctx.waitTicks(40);
-				sp.getServer().runCommand("tp @a " + ax + " " + (home[1] + 46) + " " + (az + 66) + " 180 36");
+				sp.getServer().runCommand("tp @a " + ax + " " + (home[1] + (arena == 4 ? 34 : 30)) + " " + (az + (arena == 4 ? 46 : 40)) + " 180 " + (arena == 4 ? 44 : 42));
 				sp.getConnection().waitForChunksRender();
 				ctx.waitTicks(30);
 				ctx.runOnClient(mc -> {
@@ -77,6 +77,7 @@ public class BotArmeeClientTest implements FabricClientGameTest {
 			sp.getServer().runCommand("tp @a " + home[0] + " " + home[1] + " " + home[2] + " 0 0");
 			sp.getConnection().waitForChunksRender();
 			ctx.runOnClient(mc -> ClientState.send("forgetArena"));
+			if (System.getenv("BOTARMEE_PREVIEW_ONLY") != null) return;
 
 			ctx.runOnClient(mc -> {
 				BattleConfig c = ClientState.config();
